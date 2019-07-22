@@ -1,7 +1,9 @@
 package org.reactome.harmonizome;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -9,7 +11,11 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 
+import javax.swing.plaf.FileChooserUI;
+
+import org.apache.log4j.Logger;
 import org.junit.Test;
 
 /**
@@ -19,19 +25,95 @@ import org.junit.Test;
  *
  */
 public class DataDownloader {
-    
+    private final Logger logger = Logger.getLogger(DataDownloader.class);
+    private final String URL = "https://amp.pharm.mssm.edu/static/hdfs/harmonizome/data/%s/%s";
+    private final String SELECTED_DATA_TYPE = "gene_similarity_matrix_cosine.txt.gz";
+
     public DataDownloader() {
     }
     
+    public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            System.err.println("Usage java org.reactome.harmonizome.DataDownloader dirName");
+        }
+        DataDownloader loader = new DataDownloader();
+        loader.downloadDatasets(args[0]);
+    }
+    
     @Test
-    public void downloadDatasets() throws Exception {
+    public void checkDownloadedFiles() throws IOException {
+        String dirName = "datasets/Harmonizome/download/gene_similarity_matrix_cosine";
+        File dir = new File(dirName);
+        for (File file : dir.listFiles()) {
+            Scanner scanner = new Scanner(file);
+            String header = scanner.nextLine();
+            System.out.println("Name: " + file.getName());
+            System.out.println("Size: " + file.length() / (1024 * 1024) + " M");
+            String[] tokens = header.split("\t");
+            System.out.println("Tokens in the header: " + tokens.length);
+            scanner.close();
+            System.out.println();
+        }
+    }
+    
+    /**
+     * The method is used to perform downloading. Currently only gene_similarity_matrix_cosine.txt.gz
+     * files are downloaded. The downloaded files will be unzipped automatically.
+     * @param dirName the directory to hold all downloaded files.
+     * @throws Exception
+     */
+    public void downloadDatasets(String dirName) throws Exception {
+        File dir = new File(dirName);
+        if (!dir.exists()) {
+            throw new IllegalArgumentException(dirName + " doesn't exist! Create the directory first!");
+        }
+        logger.info("Download directory: " + dirName);
         Map<String, String> datasetToPath = getDataSet2Path();
         List<String> datasets = loadReactomeIDGDatasets();
+        int c = 0;
         for (String dataset : datasets) {
             String path = datasetToPath.get(dataset);
             if (path == null)
                 throw new IllegalStateException("Cannot find path for " + dataset);
+            if (path.equals("epigenomicsdnaaccessibility")) { // Nothing in this dataset
+                logger.info("Escape epigenomicsdnaaccessibility. Nothing is there!");
+                continue; 
+            }
+            String url = String.format(URL, path, SELECTED_DATA_TYPE);
+            c ++;
+            download(path, url, dirName);
+            // download 5 for test. For production, we will parse these files directly
+            // into a database
+            if (c == 5)
+                break;
         }
+        System.out.println("Total download: " + c); // We should get 66 data sets
+    }
+    
+    private void download(String path, 
+                          String url, 
+                          String dirName) throws Exception {
+        logger.info("Starting download: " + url);
+        java.net.URL urlObj = new java.net.URL(url);
+        InputStream is = urlObj.openStream();
+//        if (true) {
+//            is.close();
+//            return;
+//        }
+        GZIPInputStream zis = new GZIPInputStream(is);
+        // There should be only one entry in the file
+        Scanner scanner = new Scanner(zis);
+        PrintWriter pw = new PrintWriter(dirName + File.separator + path + ".txt");
+        String line = null;
+        while (scanner.hasNext()) {
+           line = scanner.nextLine();
+           pw.println(line);
+        }
+        pw.close();
+        scanner.close();
+        zis.close();
+        is.close();
+        logger.info("Done!");
     }
     
     private List<String> loadReactomeIDGDatasets() throws IOException {
@@ -43,7 +125,7 @@ public class DataDownloader {
         while (scanner.hasNextLine()) {
             line = scanner.nextLine();
             String[] tokens = line.split("\t");
-            if (tokens[12].equals("false"))
+            if (tokens[13].equalsIgnoreCase("false"))
                 continue;
             // The actual data set name is the combination of the first two tokens
             if (tokens[1].length() > 0) // We need to use shortname is it is available
