@@ -92,6 +92,7 @@ public class TestGenePairCorrelationDAO
 			ds.getConnection().prepareStatement("DELETE FROM provenance WHERE id = "+p.getId()).execute();
 			ds.getConnection().prepareStatement("DELETE FROM gene WHERE id = "+gene1.getId()).execute();
 			ds.getConnection().prepareStatement("DELETE FROM gene WHERE id = "+gene2.getId()).execute();
+			ds.getConnection().setAutoCommit(false);
 //			ds.getConnection().commit();
 		}
 	}
