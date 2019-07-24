@@ -34,10 +34,9 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 	// These should be configurable...
 	private int numTxOps = 0;
 	private int batchSize = 100;
-	// TODO: get dbname from config.
 	
 	@Autowired
-	private String dbName; // = "correlation_db";
+	private String dbName;
 	
 	private Transaction addGeneTx;
 	
@@ -60,11 +59,7 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 	@Transactional(isolation = Isolation.READ_UNCOMMITTED)
 	public void loadGenePairsFromDataFile(String pathToFile)
 	{
-		session = sessionFactory.getCurrentSession();
-		if (session == null || !session.isOpen())
-		{
-			this.session = sessionFactory.openSession();
-		}
+		getSession();
 		// play with some tuning parameters... 
 //		this.session.createSQLQuery("set global innodb_buffer_pool_size=8053063680;").executeUpdate();
 //		this.session.createSQLQuery("set global innodb_io_capacity=5000;").executeUpdate();
@@ -100,12 +95,12 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 		// Executing a commit EVERY time a record is added is very slow. Executing a commit after some large number
 		// of INSERTs speeds things up considerably.
 			
-		if (session == null || !session.isOpen())
+		if (this.session == null || !this.session.isOpen())
 		{
-			session = sessionFactory.openSession();
+			this.session = sessionFactory.openSession();
 		}
 		
-		session.setHibernateFlushMode(FlushMode.COMMIT);
+		this.session.setHibernateFlushMode(FlushMode.COMMIT);
 
 		Gene[] names = {gene1, gene2};
 		Arrays.sort(names);
@@ -160,12 +155,8 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 	public Map<Provenance, Double> getCorrelation(Gene gene1, Gene gene2)
 	{
 		Map<Provenance, Double> provenanceCorrelationMap = new HashMap<>();
-		session = sessionFactory.getCurrentSession();
 		
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
+		getSession();
 
 		// We don't store both combinations of a gene pair in the database. A gene-pair is stored once, with genes sorted alphabetically.
 		// Before we query, we must sort the gene names...
@@ -191,12 +182,7 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 	@Transactional(readOnly = true)
 	public Double getCorrelation(Gene gene1, Gene gene2, Provenance prov)
 	{
-		session = sessionFactory.getCurrentSession();
-		
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
+		getSession();
 		
 		// We don't store both combinations of a gene pair in the database. A gene-pair is stored once, with genes sorted alphabetically.
 		// Before we query, we must sort the gene names...
@@ -210,6 +196,15 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 																		.getSingleResult();
 		
 		return correlation.getCorrelationValue();
+	}
+
+	private void getSession()
+	{
+		this.session = sessionFactory.getCurrentSession();
+		if (this.session == null || !this.session.isOpen())
+		{
+			this.session = sessionFactory.openSession();
+		}
 	}
 
 	@Override

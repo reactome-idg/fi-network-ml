@@ -37,11 +37,7 @@ public class GeneDAOImpl implements GeneDAO
 //		else
 		{
 			// symbol has not already been loaded, so let's add it to the database.
-			session = sessionFactory.getCurrentSession();
-			if (!session.isOpen())
-			{
-				session = sessionFactory.openSession();
-			}
+			getSession();
 			session.setCacheMode(CacheMode.NORMAL);
 			Gene gene = new Gene();
 			gene.setSymbol(symbol);
@@ -54,15 +50,20 @@ public class GeneDAOImpl implements GeneDAO
 		}
 	}
 
-	@Transactional(readOnly = true)
-	@Override
-	public List<Gene> getGene(String symbol)
+	private void getSession()
 	{
 		session = sessionFactory.getCurrentSession();
 		if (!session.isOpen())
 		{
 			session = sessionFactory.openSession();
 		}
+	}
+
+	@Transactional(readOnly = true)
+	@Override
+	public List<Gene> getGene(String symbol)
+	{
+		getSession();
 //		if (symbolToIdCache.containsKey(symbol))
 //		{
 //			Gene g = new Gene();
@@ -86,11 +87,7 @@ public class GeneDAOImpl implements GeneDAO
 	@Override
 	public List<Gene> getGene(Long id)
 	{
-		session = sessionFactory.getCurrentSession();
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
+		getSession();
 		@SuppressWarnings("unchecked")
 		List<Gene> results = session.createQuery("from Gene where id = :id").setParameter("id", id)
 									.setCacheable(true)

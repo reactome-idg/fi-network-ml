@@ -27,12 +27,7 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
 	@Transactional(readOnly = true)
 	public Provenance getProvenanceById(Long id)
 	{
-		session = sessionFactory.getCurrentSession();
-		
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
+		getSession();
 		
 		Provenance provenance = (Provenance) session.createQuery("from Provenance where id = :id")
 													.setParameter("id", id)
@@ -40,9 +35,7 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
 		return provenance;
 	}
 
-	@Override
-	@Transactional(readOnly = true)
-	public List<Provenance> getProvenanceByName(String name)
+	private void getSession()
 	{
 		session = sessionFactory.getCurrentSession();
 		
@@ -50,6 +43,13 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
 		{
 			session = sessionFactory.openSession();
 		}
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Provenance> getProvenanceByName(String name)
+	{
+		getSession();
 		
 		@SuppressWarnings("unchecked")
 		List<Provenance> provenances = (List<Provenance>) session.createQuery("from Provenance where name = :name")
@@ -67,12 +67,7 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
 	{
 		Provenance createdProvenance;
 		
-		session = sessionFactory.getCurrentSession();
-		
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
+		getSession();
 		
 		// Before we try to persis this, let's make sure that it's not already there.
 		@SuppressWarnings("unchecked")
