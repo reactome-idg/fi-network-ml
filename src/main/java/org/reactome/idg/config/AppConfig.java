@@ -12,6 +12,7 @@ import static org.hibernate.cfg.AvailableSettings.PASS;
 import static org.hibernate.cfg.AvailableSettings.SHOW_SQL;
 import static org.hibernate.cfg.AvailableSettings.URL;
 import static org.hibernate.cfg.AvailableSettings.USER;
+import static org.hibernate.cfg.AvailableSettings.STATEMENT_BATCH_SIZE;
 
 import java.io.IOException;
 import java.net.URI;
@@ -109,9 +110,9 @@ public class AppConfig {
 		props.put(C3P0_ACQUIRE_INCREMENT, env.getProperty("hibernate.c3p0.acquire_increment"));
 		props.put(C3P0_TIMEOUT, env.getProperty("hibernate.c3p0.timeout"));
 		props.put(C3P0_MAX_STATEMENTS, env.getProperty("hibernate.c3p0.max_statements"));
+		props.put(STATEMENT_BATCH_SIZE, env.getProperty("hibernate.jdbc.batch_size"));
 		// TODO: Import proper constants for these, also maybe make them configurable in properties file.
 		props.put("hibernate.connection.autocommit", false);
-		props.put("hibernate.jdbc.batch_size", "100");
 		props.put("hibernate.order_inserts", true);
 		props.put("hibernate.generate_statistics", false);
 //		props.put("hibernate.cache.use_second_level_cache", false);
