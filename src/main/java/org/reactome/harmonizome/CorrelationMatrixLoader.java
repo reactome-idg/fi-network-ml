@@ -113,7 +113,7 @@ public class CorrelationMatrixLoader
 				geneDao.addGenes(symbolsToAdd);
 				this.symbolToId = geneDao.getSymbolToIdMapping();
 				int maxPairs = (allGeneSymbols.length * (allGeneSymbols.length + 1))/2;
-				this.chunkSize = maxPairs; // to force a single-file dump & load. This could be something that is configurable flag: "single-file-data-load" or something...
+//				this.chunkSize = maxPairs; // to force a single-file dump & load. This could be something that is configurable flag: "single-file-data-load" or something...
 				logger.info("{} possible gene-pair correlations.",  maxPairs);
 				// global key buffer ensures that we don't add duplicate keys to the database.
 				Set<String> globalKeyBuffer = new TreeSet<>();
@@ -185,7 +185,6 @@ public class CorrelationMatrixLoader
 								// records for a single bulk-load. Too big of a chunk sice and the number of inserts/second seems to drop a little.
 								if (lineCount % chunkSize == 0)
 								{
-
 									writeCorrelationsToFile(lineBuffer, tempFileName);
 									// Now it's time to load the file to the database.
 									dao.loadGenePairsFromDataFile(tempFileName);
