@@ -18,7 +18,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Table(name = "gene", indexes = { @Index(columnList = "symbol", unique = true, name = "idx_unq_symbol") })
 public class Gene implements Comparable<Gene>
 {
-	@Column(name = "symbol")
+	@Column(name = "symbol", length = 60, nullable = false)
 	private String symbol;
 	
 	@Id
