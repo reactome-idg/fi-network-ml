@@ -7,7 +7,15 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
@@ -17,7 +25,9 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.reactome.idg.dao.GeneCorrelationDAO;
+import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.ProvenanceDAO;
+import org.reactome.idg.model.Gene;
 import org.reactome.idg.model.Provenance;
 import org.springframework.aop.target.CommonsPool2TargetSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +47,8 @@ public class CorrelationMatrixLoader
 
 	private static final Logger logger = LogManager.getLogger();
 	
+	private Map<String, Long> symbolToId = new HashMap<>();
+	
 	private static final String PATH_TO_TMP_FILE = "/tmp/data_for_idg";
 
 	@Autowired
@@ -46,6 +58,9 @@ public class CorrelationMatrixLoader
 	
 	@Autowired
 	private GeneCorrelationDAO dao;
+	
+	@Autowired
+	private GeneDAO geneDao;
 	
 	@Autowired
 	private ProvenanceDAO provenanceDao;
@@ -78,21 +93,25 @@ public class CorrelationMatrixLoader
 				String geneSymbolHeader = scanner.nextLine();
 				String[] parts = geneSymbolHeader.split(delimeter);
 				String[] allGeneSymbols = new String[parts.length-1];
+				Map<String, Long> allGenesMap = geneDao.getSymbolToIdMapping();
+				List<String> symbolsToAdd = new ArrayList<>();
 //				Set<String> geneSymbolSet = new HashSet<>(allGeneSymbols.length);
 				// start at headerSize, because headers go in BOTH directions. If there is more than 1 header row, there will
 				// also be more than 1 column, so you must start extracting gene symbols headerSize elements from the beginning of the array.
+				// TODO: find a way to run this section across multiple threads, to speed it up.
 				for (int i = headerSize; i < parts.length; i++)
 				{
 					String gene = parts[i].replaceAll("\"", "");
 					allGeneSymbols[i - headerSize] = gene;
-//					boolean ok = geneSymbolSet.add(gene);
-//					if (!ok)
-//					{
-//						logger.warn("Header has a duplicated gene symbol: {}", gene);
-//					}
+					if (!allGenesMap.containsKey(gene))
+					{
+						symbolsToAdd.add(gene);
+					}
 				}
-
-				logger.info("{} gene symbols in the header.", allGeneSymbols.length);
+				
+				logger.info("{} gene symbols in the header, {} are new and will be added to the database.", allGeneSymbols.length, symbolsToAdd.size());
+				geneDao.addGenes(symbolsToAdd);
+				this.symbolToId = geneDao.getSymbolToIdMapping();
 				int maxPairs = (allGeneSymbols.length * (allGeneSymbols.length + 1))/2;
 				this.chunkSize = maxPairs; // to force a single-file dump & load. This could be something that is configurable flag: "single-file-data-load" or something...
 				logger.info("{} possible gene-pair correlations.",  maxPairs);
@@ -144,11 +163,19 @@ public class CorrelationMatrixLoader
 							// if the key is new to this Loader, then add it to the file...
 							if (newKey)
 							{
-								String g1 = keyParts[0];
-								String g2 = keyParts[1];
+								if (this.symbolToId.get(keyParts[0]) == null)
+								{
+									logger.warn("Map has no ID for symbol {}", keyParts[0]);
+								}
+								if (this.symbolToId.get(keyParts[1]) == null)
+								{
+									logger.warn("Map has no ID for symbol {}", keyParts[1]);
+								}
+								String g1 = this.symbolToId.get(keyParts[0]).toString();
+								String g2 = this.symbolToId.get(keyParts[1]).toString();
 								
 								int count = recordCount.getAndIncrement();
-								lineBuffer.add("\'"+g1+"\'\t\'"+g2+"\'\t\'"+correlationValue+"\'\t\'"+provenanceToUse.getId()+"\'\n");
+								lineBuffer.add(""+g1+"\t"+g2+"\t"+correlationValue+"\t"+provenanceToUse.getId()+"\n");
 								int lineCount = linesInFile.incrementAndGet();
 								if (count % 1000000 == 0)
 								{
