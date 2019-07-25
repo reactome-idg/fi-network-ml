@@ -70,8 +70,8 @@ public class GeneCorrelationDAOImpl implements GeneCorrelationDAO
 //		this.session.createSQLQuery("SET sql_log_bin ='OFF';").executeUpdate();
 		LocalDateTime start = LocalDateTime.now();
 		NativeQuery<?> nq = this.session.createSQLQuery("LOAD DATA LOCAL INFILE :file INTO TABLE "+dbName+".gene_pair_correlation"
-				+ " FIELDS ENCLOSED BY \"'\" LINES TERMINATED BY '\\n' "
-				+ " (gene_1, gene_2, correlation_value, provenance_id);").setParameter("file", pathToFile);
+				+ " LINES TERMINATED BY '\\n' "
+				+ " (gene_1_id, gene_2_id, correlation_value, provenance_id);").setParameter("file", pathToFile);
 		long numRows = nq.executeUpdate();
 		LocalDateTime end = LocalDateTime.now();
 //		this.session.createSQLQuery("SET sql_log_bin ='ON';").executeUpdate();
