@@ -13,9 +13,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
-import javax.swing.plaf.FileChooserUI;
-
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 /**
@@ -25,7 +24,7 @@ import org.junit.Test;
  *
  */
 public class DataDownloader {
-    private final Logger logger = Logger.getLogger(DataDownloader.class);
+    private final Logger logger =LogManager.getLogger(DataDownloader.class);
     private final String URL = "https://amp.pharm.mssm.edu/static/hdfs/harmonizome/data/%s/%s";
     private final String SELECTED_DATA_TYPE = "gene_similarity_matrix_cosine.txt.gz";
 
