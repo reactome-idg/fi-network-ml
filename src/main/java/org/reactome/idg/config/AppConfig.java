@@ -10,9 +10,9 @@ import static org.hibernate.cfg.AvailableSettings.DRIVER;
 import static org.hibernate.cfg.AvailableSettings.HBM2DDL_AUTO;
 import static org.hibernate.cfg.AvailableSettings.PASS;
 import static org.hibernate.cfg.AvailableSettings.SHOW_SQL;
+import static org.hibernate.cfg.AvailableSettings.STATEMENT_BATCH_SIZE;
 import static org.hibernate.cfg.AvailableSettings.URL;
 import static org.hibernate.cfg.AvailableSettings.USER;
-import static org.hibernate.cfg.AvailableSettings.STATEMENT_BATCH_SIZE;
 
 import java.io.IOException;
 import java.net.URI;
@@ -48,11 +48,11 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import com.mysql.cj.jdbc.MysqlDataSource;
 
 @Configuration
-@PropertySource("classpath:application.properties")
+@PropertySource("file:${pathToProperties}")
 @EnableTransactionManagement
 @ComponentScans(value = { @ComponentScan("org.reactome.idg.dao"), @ComponentScan("org.reactome.idg.loader"), @ComponentScan("org.reactome.idg") })
-public class AppConfig {
-
+public class AppConfig
+{
 	@Autowired
 	private Environment env;
 
