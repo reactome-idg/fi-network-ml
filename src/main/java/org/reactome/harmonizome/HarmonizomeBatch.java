@@ -116,4 +116,24 @@ public class HarmonizomeBatch
 			}
 		}
 	}
+
+	public List<HarmonizomeDataDownloader> getHarmonizomeDownloaders()
+	{
+		return harmonizomeDownloaders;
+	}
+
+	public void setHarmonizomeDownloaders(List<HarmonizomeDataDownloader> harmonizomeDownloaders)
+	{
+		this.harmonizomeDownloaders = harmonizomeDownloaders;
+	}
+
+	public CorrelationMatrixLoader getCorrelationMatrixLoader()
+	{
+		return correlationMatrixLoader;
+	}
+
+	public void setCorrelationMatrixLoader(CorrelationMatrixLoader correlationMatrixLoader)
+	{
+		this.correlationMatrixLoader = correlationMatrixLoader;
+	}
 }

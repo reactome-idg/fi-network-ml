@@ -4,13 +4,12 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
-import java.sql.Savepoint;
 import java.util.List;
 
 import javax.sql.DataSource;
 
 import org.junit.Test;
-import org.reactome.idg.config.AppConfig;
+import org.reactome.harmonizome.config.AppConfig;
 import org.reactome.idg.dao.GeneDAO;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 

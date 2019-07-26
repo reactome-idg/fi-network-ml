@@ -22,45 +22,30 @@ import org.springframework.transaction.annotation.Transactional;
 public class GeneDAOImpl implements GeneDAO
 {
 	private static final Logger logger = LogManager.getLogger();
-
-	// The symbol-to-ID map is a cache intended to speed up the process of creating bulk-load files.
-	// The bulk-load files will contain on each row: two gene IDs, and a correlation value.
-	// Reading a correlation matrix will require lookups of gene symbols to gene IDs. This cache
-	// should save on round-trips to the database.
-//	private static Map<String, Long> symbolToIdCache = new HashMap<>();
 	
 	@Autowired
 	private SessionFactory sessionFactory;
 
 	private Session session;
 	
+	/**
+	 * @see {@link GeneDAO#addGene(String)}
+	 */
 	@Transactional(readOnly = false)
 	@Override
 	public Long addGene(String symbol)
 	{
-		// If the symbol is already in the local cache, return early!
-//		if (symbolToIdCache.containsKey(symbol))
-//		{
-//			return symbolToIdCache.get(symbol);
-//		}
-//		else
-		{
-			// symbol has not already been loaded, so let's add it to the database.
-			getSession();
-			session.setCacheMode(CacheMode.NORMAL);
-			Gene gene = new Gene();
-			gene.setSymbol(symbol);
-			
-			Long newGeneID = (Long) session.save(gene);
-			
-//			symbolToIdCache.put(symbol, newGeneID);
-			
-			return newGeneID;
-		}
+		getSession();
+		session.setCacheMode(CacheMode.NORMAL);
+		Gene gene = new Gene();
+		gene.setSymbol(symbol);
+		Long newGeneID = (Long) session.save(gene);
+		return newGeneID;
 	}
 
 	private void getSession()
 	{
+		// TODO: Move this to some common class - all the other DAO Impls use this pattern somewhere.
 		session = sessionFactory.getCurrentSession();
 		if (!session.isOpen())
 		{
@@ -68,30 +53,25 @@ public class GeneDAOImpl implements GeneDAO
 		}
 	}
 
+	/**
+	 * @see {@link GeneDAO#getGene(String)}
+	 */
 	@Transactional(readOnly = true)
 	@Override
 	public List<Gene> getGene(String symbol)
 	{
 		getSession();
-//		if (symbolToIdCache.containsKey(symbol))
-//		{
-//			Gene g = new Gene();
-//			g.setId(symbolToIdCache.get(symbol));
-//			g.setSymbol(symbol);
-//			return Arrays.asList(g);
-//		}
-//		else
-		{
-			@SuppressWarnings("unchecked")
-			List<Gene> results = session.createQuery("from Gene where symbol = :symbol").setParameter("symbol", symbol)
-										.setCacheable(true)
-										.setCacheMode(CacheMode.GET)
-										.getResultList();
-			
-			return results;
-		}
+		@SuppressWarnings("unchecked")
+		List<Gene> results = session.createQuery("from Gene where symbol = :symbol").setParameter("symbol", symbol)
+									.setCacheable(true)
+									.setCacheMode(CacheMode.GET)
+									.getResultList();
+		return results;
 	}
 
+	/**
+	 * @see {@link GeneDAO#getGene(Long)}
+	 */
 	@Transactional(readOnly = true)
 	@Override
 	public List<Gene> getGene(Long id)
@@ -106,6 +86,9 @@ public class GeneDAOImpl implements GeneDAO
 		return results;
 	}
 
+	/**
+	 * @see {@link GeneDAO#getSymbolToIdMapping()}
+	 */
 	@Transactional(readOnly = true)
 	@Override
 	public Map<String, Long> getSymbolToIdMapping()
@@ -123,6 +106,9 @@ public class GeneDAOImpl implements GeneDAO
 		return symbolsToIds;
 	}
 	
+	/**
+	 * @see {@link GeneDAO#getAllGenes()}
+	 */
 	@Transactional(readOnly = true)
 	@Override
 	public List<Gene> getAllGenes()
@@ -133,6 +119,9 @@ public class GeneDAOImpl implements GeneDAO
 		return genes;
 	}
 	
+	/**
+	 * @see {@link GeneDAO#addGenes(List)}
+	 */
 	@Override
 	public void addGenes(List<String> symbols)
 	{
@@ -153,7 +142,7 @@ public class GeneDAOImpl implements GeneDAO
 //			{
 				session.save(gene);
 //			}
-//			catch (Error e)
+//			catch (ConstraintViolationException e)
 //			{
 //				// write out the message, but don't crash.
 //				if (e.getMessage().contains("Duplicate entry"))

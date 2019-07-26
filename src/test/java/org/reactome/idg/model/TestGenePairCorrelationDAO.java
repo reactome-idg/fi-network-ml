@@ -1,19 +1,15 @@
 package org.reactome.idg.model;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
 import org.junit.Test;
-import org.reactome.idg.config.AppConfig;
+import org.reactome.harmonizome.config.AppConfig;
 import org.reactome.idg.dao.GeneCorrelationDAO;
 import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.ProvenanceDAO;

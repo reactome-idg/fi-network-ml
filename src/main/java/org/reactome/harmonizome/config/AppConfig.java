@@ -1,4 +1,4 @@
-package org.reactome.idg.config;
+package org.reactome.harmonizome.config;
 
 import static org.hibernate.cfg.AvailableSettings.C3P0_ACQUIRE_INCREMENT;
 import static org.hibernate.cfg.AvailableSettings.C3P0_MAX_SIZE;

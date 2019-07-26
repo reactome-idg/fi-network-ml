@@ -1,7 +1,5 @@
 package org.reactome.idg.model;
 
-
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -9,10 +7,8 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import java.util.Random;
 
-import javax.print.attribute.standard.PrinterLocation;
-
 import org.junit.Test;
-import org.reactome.idg.config.AppConfig;
+import org.reactome.harmonizome.config.AppConfig;
 import org.reactome.idg.dao.ProvenanceDAO;
 import org.reactome.idg.model.Provenance;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;

@@ -29,7 +29,7 @@
 						<configuration>
 							<archive>
 								<manifest>
-									<mainClass>org.reactome.harmonizome.ImportHarmonizomeData</mainClass>
+									<mainClass>org.reactome.harmonizome.main.ImportHarmonizomeData</mainClass>
 								</manifest>
 							</archive>
 							<descriptorRefs>
