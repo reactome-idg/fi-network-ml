@@ -59,6 +59,9 @@ public class TestHarmonizomeDownloader
 	{
 		try(AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();)
 		{
+			String pathToProps = "./src/test/resources/application.properties";
+
+			System.setProperty("pathToProperties", pathToProps);
 			context.register(AppConfig.class);
 			context.refresh();
 			

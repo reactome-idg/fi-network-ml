@@ -39,45 +39,45 @@ public class ImportHarmonizomeData
 		}
 		System.setProperty("pathToProperties", pathToProps);
 		Properties props = new Properties();
-		try(AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();)
+		try(AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
+			FileInputStream fis = new FileInputStream(pathToProps);)
 		{
-//			try
+			// Load the properties file.
+			props.load(fis);
+			List<HarmonizomeDataDownloader> downloaders = new ArrayList<>();
+			Path path = Paths.get(props.getProperty("pathToHarmonizomeFile"));
+			List<String> lines = Files.readAllLines(path);
+			String downloadPath = props.getProperty("harmonizomeDownloadPath");
+			
+			// Populate the list of Downloaders, based on the contents of the downloaders file, the location of which
+			// is specified in the properties file.
+			for (String line : lines)
 			{
-				props.load(new FileInputStream(pathToProps));
-	
-				List<HarmonizomeDataDownloader> downloaders = new ArrayList<>();
-				Path path = Paths.get(props.getProperty("pathToHarmonizomeFile"));
-				List<String> lines = Files.readAllLines(path);
-				String downloadPath = props.getProperty("harmonizomeDownloadPath");
-				for (String line : lines)
-				{
-					String[] parts = line.split("\\t");
-					HarmonizomeDataDownloader downloader = new HarmonizomeDataDownloader(new URI(parts[2]), parts[0], parts[1], downloadPath);
-					downloaders.add(downloader);
-				}
-				
-	
-				// Get the batch bean. It will be autowired with a list of HarmonizomeDownloaders, which it will execute.
-	//			HarmonizomeBatch batch = (HarmonizomeBatch) context.getBean("harmonizomeBatch");
-				HarmonizomeBatch batch = new HarmonizomeBatch();
-				batch.setHarmonizomeDownloaders(downloaders);
-				context.register(AppConfig.class);
-				context.refresh();
-
-				CorrelationMatrixLoader correlationMatrixLoader = (CorrelationMatrixLoader) context.getBean("correlationMatrixLoader");
-				batch.setCorrelationMatrixLoader(correlationMatrixLoader );
-				// download the files.
-				batch.downloadFiles();
-				
-				try
-				{
-					// load to the database.
-					batch.loadFiles();
-				}
-				catch (Exception e)
-				{
-					e.printStackTrace();
-				}
+				String[] parts = line.split("\\t");
+				HarmonizomeDataDownloader downloader = new HarmonizomeDataDownloader(new URI(parts[2]), parts[0], parts[1], downloadPath);
+				downloaders.add(downloader);
+			}
+			// Create a new batch that will execute the downloaders.
+			HarmonizomeBatch batch = new HarmonizomeBatch();
+			batch.setHarmonizomeDownloaders(downloaders);
+			
+			// Get the matrix loader. We need to get this from the spring context because it depends
+			// on DAO components that are autowired by Spring.
+			context.register(AppConfig.class);
+			context.refresh();
+			CorrelationMatrixLoader correlationMatrixLoader = (CorrelationMatrixLoader) context.getBean("correlationMatrixLoader");
+			batch.setCorrelationMatrixLoader(correlationMatrixLoader );
+			// download the files.
+			batch.downloadFiles();
+			
+			try
+			{
+				// load to the database.
+				batch.loadFiles();
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
 			}
 		}
 		catch (IOException e)
