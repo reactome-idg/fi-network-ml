@@ -8,14 +8,10 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
@@ -27,16 +23,16 @@ import org.apache.logging.log4j.Logger;
 import org.reactome.idg.dao.GeneCorrelationDAO;
 import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.ProvenanceDAO;
-import org.reactome.idg.model.Gene;
 import org.reactome.idg.model.Provenance;
-import org.springframework.aop.target.CommonsPool2TargetSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 /**
  * Loads a gene-pair correlation matrix into a MySQL database.
  * @author sshorser
  *
  */
+@Component("correlationMatrixLoader")
 public class CorrelationMatrixLoader
 {
 	private static AtomicInteger fileNum = new AtomicInteger(0);
@@ -65,9 +61,6 @@ public class CorrelationMatrixLoader
 	@Autowired
 	private ProvenanceDAO provenanceDao;
 	
-	@Autowired
-	CommonsPool2TargetSource daoPool;
-
 	private Provenance provenance;
 	
 	public CorrelationMatrixLoader()
@@ -95,10 +88,8 @@ public class CorrelationMatrixLoader
 				String[] allGeneSymbols = new String[parts.length-1];
 				Map<String, Long> allGenesMap = geneDao.getSymbolToIdMapping();
 				List<String> symbolsToAdd = new ArrayList<>();
-//				Set<String> geneSymbolSet = new HashSet<>(allGeneSymbols.length);
 				// start at headerSize, because headers go in BOTH directions. If there is more than 1 header row, there will
 				// also be more than 1 column, so you must start extracting gene symbols headerSize elements from the beginning of the array.
-				// TODO: find a way to run this section across multiple threads, to speed it up.
 				for (int i = headerSize; i < parts.length; i++)
 				{
 					String gene = parts[i].replaceAll("\"", "");
@@ -185,13 +176,7 @@ public class CorrelationMatrixLoader
 								// records for a single bulk-load. Too big of a chunk sice and the number of inserts/second seems to drop a little.
 								if (lineCount % chunkSize == 0)
 								{
-									writeCorrelationsToFile(lineBuffer, tempFileName);
-									// Now it's time to load the file to the database.
-									dao.loadGenePairsFromDataFile(tempFileName);
-									// Shuffle the files - current file gets renamed via a move operation, instead of simply being over-written.
-									// This way, if something goes wrong, you have ALL of the files on disk.
-									Files.move(Paths.get(tempFileName), Paths.get(tempFileName + "_" + fileNum.getAndIncrement()));
-									lineBuffer.clear();
+									loadFileToDatabase(lineBuffer, tempFileName);
 								}
 							}
 						}
@@ -209,6 +194,7 @@ public class CorrelationMatrixLoader
 					}
 				}
 				lineStartOffset++;
+				// Now process the remainders.
 				logger.info("{} gene-pairs will be written to tmp file.", lineBuffer.size());
 				if (Files.notExists(Paths.get(tempFileName)))
 				{
@@ -221,6 +207,17 @@ public class CorrelationMatrixLoader
 				logger.info("{} time spent loading the data.", Duration.between(startTime, endTime).toString());
 			}
 		}
+	}
+
+	private void loadFileToDatabase(Set<String> lineBuffer, String tempFileName) throws IOException
+	{
+		writeCorrelationsToFile(lineBuffer, tempFileName);
+		// Now it's time to load the file to the database.
+		dao.loadGenePairsFromDataFile(tempFileName);
+		// Shuffle the files - current file gets renamed via a move operation, instead of simply being over-written.
+		// This way, if something goes wrong, you have ALL of the files on disk.
+		Files.move(Paths.get(tempFileName), Paths.get(tempFileName + "_" + fileNum.getAndIncrement()));
+		lineBuffer.clear();
 	}
 
 	/**

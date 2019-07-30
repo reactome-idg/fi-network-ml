@@ -25,21 +25,13 @@ import java.util.Properties;
 
 import javax.sql.DataSource;
 
-import org.reactome.harmonizome.CorrelationMatrixLoader;
-import org.reactome.harmonizome.HarmonizomeBatch;
 import org.reactome.harmonizome.HarmonizomeDataDownloader;
-import org.reactome.idg.dao.GeneCorrelationDAOImpl;
-import org.reactome.idg.dao.GeneDAOImpl;
-import org.reactome.idg.dao.ProvenanceDAOImpl;
-import org.springframework.aop.target.CommonsPool2TargetSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.ComponentScans;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
-import org.springframework.context.annotation.Scope;
 import org.springframework.core.env.Environment;
 import org.springframework.orm.hibernate5.HibernateTransactionManager;
 import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
@@ -50,7 +42,7 @@ import com.mysql.cj.jdbc.MysqlDataSource;
 @Configuration
 @PropertySource("file:${pathToProperties}")
 @EnableTransactionManagement
-@ComponentScans(value = { @ComponentScan("org.reactome.idg.dao"), @ComponentScan("org.reactome.idg.loader"), @ComponentScan("org.reactome.idg") })
+@ComponentScans({ @ComponentScan("org.reactome.idg.dao"), @ComponentScan("org.reactome.idg.loader"), @ComponentScan("org.reactome.idg"), @ComponentScan("org.reactome.harmonizome") })
 public class AppConfig
 {
 	@Autowired
@@ -147,61 +139,5 @@ public class AppConfig
 		HibernateTransactionManager transactionManager = new HibernateTransactionManager();
 		transactionManager.setSessionFactory(getSessionFactory().getObject());
 		return transactionManager;
-	}
-	
-	// The "dao" bean is a protoype for the DAO-pool. Don't try to use this bean directly, request a DAO from "daoPool" via getTarget();
-	@Bean(name = "dao")
-	@Scope(scopeName = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-	public GeneCorrelationDAOImpl getDao()
-	{
-		GeneCorrelationDAOImpl dao = new GeneCorrelationDAOImpl();
-		dao.setBatchSize(100000);
-		return dao;
-	}
-	
-	@Bean(name = "provenanceDao")
-	public ProvenanceDAOImpl getProvenanceDao()
-	{
-		ProvenanceDAOImpl dao = new ProvenanceDAOImpl();
-		return dao;
-	}
-	
-	@Bean(name = "geneDao")
-	public GeneDAOImpl getGeneDao()
-	{
-		GeneDAOImpl dao = new GeneDAOImpl();
-		return dao;
-	}
-	
-	// Not sure it's necessary to pool the DAOs anymore. Was needed when running multiple connections for INSERTS, but with bulk-loading from a file
-	// with a single connection, this might not be needed anymore.
-	@Bean(name = "daoPool")
-	public CommonsPool2TargetSource getDaoPool()
-	{
-		CommonsPool2TargetSource pool = new CommonsPool2TargetSource();
-		
-		pool.setTargetBeanName("dao");
-		pool.setMinIdle(1);
-		pool.setMaxSize(8);
-		
-		return pool;
-	}
-	
-//	@Bean(name= "archs4Loader")
-//	public Archs4Loader getArchs4Loader()
-//	{
-//		return new Archs4Loader(env.getProperty("files.archs4.correlation_file"));
-//	}
-	
-	@Bean(name="correlationMatrixLoader")
-	public CorrelationMatrixLoader getCorrelationMatrixLoader()
-	{
-		return new CorrelationMatrixLoader();
-	}
-	
-	@Bean(name="harmonizomeBatch")
-	public HarmonizomeBatch getHarmonizomeBatch()
-	{
-		return new HarmonizomeBatch();
 	}
 }

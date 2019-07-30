@@ -19,12 +19,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Processes Harmonizome data in batches
+ * Processes Harmonizome data in batches. This class will execute set of HarmonizomeDataDownloaders, and then 
+ * load the data from each download into the database.
  * 
  * @author sshorser
  *
  */
-@Component
+@Component("harmonizomeBatch")
 public class HarmonizomeBatch
 {
 	private static final Logger logger = LogManager.getLogger();
@@ -77,7 +78,7 @@ public class HarmonizomeBatch
 					// This Consumer will write a zip stream to a file.
 					// I copied this from a part of AddLinks that could handle zip and gzip files.
 					// In this context, we are only expecting gzip so having a data-writer object like this
-					// looks like overkill. TODO: Rewrite to be simpler.
+					// looks like overkill. TODO: Rewrite to be simpler, if possible.
 					BiConsumer<InflaterInputStream, String> dataWriter = (inStream, outputFileName) -> {
 						byte[] buffer = new byte[1024];
 						try
