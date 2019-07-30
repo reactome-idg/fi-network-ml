@@ -13,7 +13,9 @@ import java.util.List;
 
 import org.apache.http.client.ClientProtocolException;
 import org.junit.Test;
-import org.reactome.harmonizome.config.AppConfig;
+import org.reactome.idg.config.AppConfig;
+import org.reactome.idg.harmonizome.HarmonizomeBatch;
+import org.reactome.idg.harmonizome.HarmonizomeDataDownloader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 @SuppressWarnings("static-method")

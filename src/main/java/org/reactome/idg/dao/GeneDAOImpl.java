@@ -4,115 +4,83 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hibernate.CacheMode;
+import javax.persistence.TypedQuery;
+
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.hibernate.Transaction;
 import org.reactome.idg.model.Gene;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-public class GeneDAOImpl implements GeneDAO
-{
-	private static final Logger logger = LogManager.getLogger();
+public class GeneDAOImpl implements GeneDAO {
 	
 	@Autowired
 	private SessionFactory sessionFactory;
 
-	private Session session;
+	public GeneDAOImpl() {
+    }
 	
 	/**
 	 * @see {@link GeneDAO#addGene(String)}
 	 */
-	@Transactional(readOnly = false)
 	@Override
-	public Long addGene(String symbol)
+	public Integer addGene(String symbol)
 	{
-		getSession();
-		session.setCacheMode(CacheMode.NORMAL);
+		Session session = sessionFactory.getCurrentSession();
 		Gene gene = new Gene();
 		gene.setSymbol(symbol);
-		Long newGeneID = (Long) session.save(gene);
+		Integer newGeneID = (Integer) session.save(gene);
 		return newGeneID;
-	}
-
-	private void getSession()
-	{
-		// TODO: Move this to some common class - all the other DAO Impls use this pattern somewhere.
-		session = sessionFactory.getCurrentSession();
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
 	}
 
 	/**
 	 * @see {@link GeneDAO#getGene(String)}
 	 */
-	@Transactional(readOnly = true)
 	@Override
-	public List<Gene> getGene(String symbol)
-	{
-		getSession();
-		@SuppressWarnings("unchecked")
-		List<Gene> results = session.createQuery("from Gene where symbol = :symbol").setParameter("symbol", symbol)
-									.setCacheable(true)
-									.setCacheMode(CacheMode.GET)
-									.getResultList();
-		return results;
+	public Gene getGene(String symbol) {
+	    Session session = sessionFactory.getCurrentSession();
+	    TypedQuery<Gene> query = session.createQuery("FROM Gene where symbol = :symbol",
+	                                                Gene.class);
+	    List<Gene> results = query.setParameter("symbol", symbol).getResultList();
+	    return results.isEmpty() ? null : results.get(0);
 	}
 
 	/**
 	 * @see {@link GeneDAO#getGene(Long)}
 	 */
-	@Transactional(readOnly = true)
 	@Override
-	public List<Gene> getGene(Long id)
+	public Gene getGene(Integer id)
 	{
-		getSession();
-		@SuppressWarnings("unchecked")
-		List<Gene> results = session.createQuery("from Gene where id = :id").setParameter("id", id)
-									.setCacheable(true)
-									.setCacheMode(CacheMode.GET)
-									.getResultList();
-		
-		return results;
+	    Session session = sessionFactory.getCurrentSession();
+	    Gene gene = session.load(Gene.class, id);
+	    return gene;
 	}
 
 	/**
 	 * @see {@link GeneDAO#getSymbolToIdMapping()}
 	 */
-	@Transactional(readOnly = true)
 	@Override
-	public Map<String, Long> getSymbolToIdMapping()
+	public Map<String, Integer> getSymbolToIdMapping()
 	{
-		getSession();
-		Map<String, Long> symbolsToIds = new HashMap<>();
-		
-		@SuppressWarnings("unchecked")
-		List<Gene> genes = session.createQuery("from Gene").getResultList();
+	    Session session = sessionFactory.getCurrentSession();
+		Map<String, Integer> symbolsToIds = new HashMap<>();
+		List<Gene> genes = session.createQuery("FROM " + Gene.class.getName(), Gene.class).getResultList();
 		for (Gene g : genes)
 		{
 			symbolsToIds.put(g.getSymbol(), g.getId());
 		}
-		
 		return symbolsToIds;
 	}
 	
 	/**
 	 * @see {@link GeneDAO#getAllGenes()}
 	 */
-	@Transactional(readOnly = true)
 	@Override
 	public List<Gene> getAllGenes()
 	{
-		getSession();
-		@SuppressWarnings("unchecked")
-		List<Gene> genes = session.createQuery("from Gene").getResultList();
+	    Session session = sessionFactory.getCurrentSession();
+		List<Gene> genes = session.createQuery("FROM Gene", Gene.class).getResultList();
 		return genes;
 	}
 	
@@ -122,44 +90,12 @@ public class GeneDAOImpl implements GeneDAO
 	@Override
 	public void addGenes(List<String> symbols)
 	{
-		if (this.session == null || !this.session.isOpen())
-		{
-			this.session = sessionFactory.openSession();
-		}
-		this.session.setJdbcBatchSize(500);
-//		this.session.setHibernateFlushMode(FlushMode.COMMIT);
-		Transaction tran = this.session.beginTransaction();
-		int i = 0;
-		for (String symbol : symbols)
-		{
-			i++;
+	    Session session = sessionFactory.getCurrentSession();
+		for (String symbol : symbols) {
 			Gene gene = new Gene();
 			gene.setSymbol(symbol);
-//			try
-//			{
-				session.save(gene);
-//			}
-//			catch (ConstraintViolationException e)
-//			{
-//				// write out the message, but don't crash.
-//				if (e.getMessage().contains("Duplicate entry"))
-//				{
-//					logger.warn(e.getMessage());
-//				}
-//				else
-//				{
-//					// any other constraint violation should be rethrown...
-//					throw e;
-//				}
-//			}
-			if (i % this.session.getJdbcBatchSize() == 0)
-			{
-				this.session.flush();
-				this.session.clear();
-			}
+			session.save(gene);
 		}
-		tran.commit();
-		this.session.close();
 	}
 
 }

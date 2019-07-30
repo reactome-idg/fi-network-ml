@@ -1,4 +1,4 @@
-package org.reactome.harmonizome;
+package org.reactome.idg.harmonizome;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -20,10 +20,10 @@ import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.reactome.idg.dao.GeneCorrelationDAO;
 import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.ProvenanceDAO;
 import org.reactome.idg.model.Provenance;
+import org.reactome.idg.service.GeneCorrelationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -43,7 +43,7 @@ public class CorrelationMatrixLoader
 
 	private static final Logger logger = LogManager.getLogger();
 	
-	private Map<String, Long> symbolToId = new HashMap<>();
+	private Map<String, Integer> symbolToId = new HashMap<>();
 	
 	private static final String PATH_TO_TMP_FILE = "/tmp/data_for_idg";
 
@@ -53,7 +53,7 @@ public class CorrelationMatrixLoader
 	private String filePath;
 	
 	@Autowired
-	private GeneCorrelationDAO dao;
+	private GeneCorrelationService dao;
 	
 	@Autowired
 	private GeneDAO geneDao;
@@ -86,7 +86,7 @@ public class CorrelationMatrixLoader
 				String geneSymbolHeader = scanner.nextLine();
 				String[] parts = geneSymbolHeader.split(delimeter);
 				String[] allGeneSymbols = new String[parts.length-1];
-				Map<String, Long> allGenesMap = geneDao.getSymbolToIdMapping();
+				Map<String, Integer> allGenesMap = geneDao.getSymbolToIdMapping();
 				List<String> symbolsToAdd = new ArrayList<>();
 				// start at headerSize, because headers go in BOTH directions. If there is more than 1 header row, there will
 				// also be more than 1 column, so you must start extracting gene symbols headerSize elements from the beginning of the array.

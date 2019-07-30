@@ -4,10 +4,9 @@ import java.util.List;
 
 import org.reactome.idg.model.Provenance;
 
-public interface ProvenanceDAO
-{
+public interface ProvenanceDAO {
 
-	public Provenance getProvenanceById(Long id);
+	public Provenance getProvenanceById(Integer id);
 	
 	public List<Provenance> getProvenanceByName(String name);
 	

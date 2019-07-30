@@ -12,7 +12,7 @@ public interface GeneDAO
 	 * @param symbol
 	 * @return
 	 */
-	public Long addGene(String symbol);
+	public Integer addGene(String symbol);
 	
 	/**
 	 * Adds a list of gene symbols to the database. Use this over {@link GeneDAO#addGene(String)} when you have a large number of genes to add,
@@ -26,20 +26,20 @@ public interface GeneDAO
 	 * @param symbol - The symbol to look up.
 	 * @return A list of Gene objects. There should only ever be one.
 	 */
-	public List<Gene> getGene(String symbol);
+	public Gene getGene(String symbol);
 	
 	/**
 	 * Gets a Gene that match the given symbol.
 	 * @param id - The ID to look up.
 	 * @return A list of Gene objects. There should only ever be one.
 	 */
-	public List<Gene> getGene(Long id);
+	public Gene getGene(Integer id);
 	
 	/**
 	 * Gets a Symbol-to-ID mapping of Genes from the database. 
 	 * @return A mapping of Gene symbols mapped to their IDs in the database.
 	 */
-	Map<String, Long> getSymbolToIdMapping();
+	Map<String, Integer> getSymbolToIdMapping();
 	
 	/**
 	 * Returns all genes.

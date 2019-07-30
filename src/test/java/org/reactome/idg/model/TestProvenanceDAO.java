@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 import org.junit.Test;
-import org.reactome.harmonizome.config.AppConfig;
+import org.reactome.idg.config.AppConfig;
 import org.reactome.idg.dao.ProvenanceDAO;
 import org.reactome.idg.model.Provenance;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;

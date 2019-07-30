@@ -1,4 +1,4 @@
-package org.reactome.harmonizome;
+package org.reactome.idg.harmonizome;
 
 import java.io.File;
 import java.io.FileInputStream;

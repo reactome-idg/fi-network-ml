@@ -14,86 +14,48 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class ProvenanceDAOImpl implements ProvenanceDAO
 {
+    @Autowired
+    private SessionFactory sessionFactory;
 
-	private static final Logger logger = LogManager.getLogger();
-	
-	@Autowired
-	private SessionFactory sessionFactory;
+    @Override
+    public Provenance getProvenanceById(Integer id) {
+        Session session = sessionFactory.getCurrentSession();
+        Provenance provenance = session.load(Provenance.class, id);
+        return provenance;
+    }
 
-	private Session session;
 
-	
-	@Override
-	@Transactional(readOnly = true)
-	public Provenance getProvenanceById(Long id)
-	{
-		getSession();
-		
-		Provenance provenance = (Provenance) session.createQuery("from Provenance where id = :id")
-													.setParameter("id", id)
-													.getSingleResult();
-		return provenance;
-	}
+    @Override
+    public List<Provenance> getProvenanceByName(String name)
+    {
+        Session session = sessionFactory.getCurrentSession();
 
-	private void getSession()
-	{
-		session = sessionFactory.getCurrentSession();
-		
-		if (!session.isOpen())
-		{
-			session = sessionFactory.openSession();
-		}
-	}
+        List<Provenance> provenances = session.createQuery("FROM Provenance where name = :name", Provenance.class)
+                                               .setParameter("name", name)
+                                               .getResultList();
+        return provenances;
+    }
 
-	@Override
-	@Transactional(readOnly = true)
-	public List<Provenance> getProvenanceByName(String name)
-	{
-		getSession();
-		
-		@SuppressWarnings("unchecked")
-		List<Provenance> provenances = (List<Provenance>) session.createQuery("from Provenance where name = :name")
-																.setParameter("name", name)
-																.getResultList();
-		return provenances;
-	}
+    /**
+     * @see {@link org.reactome.idg.dao.ProvenanceDAO#addProvenance(Provenance)}
+     */
+    @Override
+    public Provenance addProvenance(Provenance p) {
+        Session session = sessionFactory.getCurrentSession();
+        List<Provenance> results = session.createQuery("from Provenance where name = :name and url = :url and category = :cat and subcategory = :subcat", Provenance.class)
+                                          .setParameter("name", p.getName())
+                                          .setParameter("url", p.getUrl())
+                                          .setParameter("cat", p.getCategory())
+                                          .setParameter("subcat", p.getSubcategory())
+                                          .getResultList();
 
-	/**
-	 * @see {@link org.reactome.idg.dao.ProvenanceDAO#addProvenance(Provenance)}
-	 */
-	@Override
-	@Transactional(readOnly = false)
-	public Provenance addProvenance(Provenance p)
-	{
-		Provenance createdProvenance;
-		
-		getSession();
-		
-		// Before we try to persis this, let's make sure that it's not already there.
-		@SuppressWarnings("unchecked")
-		List<Provenance> results = session.createQuery("from Provenance where name = :name and url = :url and category = :cat and subcategory = :subcat")
-											.setParameter("name", p.getName())
-											.setParameter("url", p.getUrl())
-											.setParameter("cat", p.getCategory())
-											.setParameter("subcat", p.getSubcategory())
-											.getResultList();
-		
-
-		if (null == results || results.size() == 0)
-		{
-			Long createdProvenanceId;
-			createdProvenanceId = (Long) session.save(p);
-			createdProvenance = (Provenance) session.createQuery("from Provenance where id = :id")
-													.setParameter("id", createdProvenanceId)
-													.getResultList().get(0);
-		}
-		else
-		{
-			logger.info("Provenance ({}) already exists, and will not be recreated.", results.get(0).toString());
-			createdProvenance = results.get(0);
-		}
-		
-		return createdProvenance;
-	}
+        if (null == results || results.size() == 0) {
+            session.save(p);
+            return p; // The transient is now persisted. There is no need to perform another call
+        }
+        else {
+            return results.get(0);
+        }
+    }
 
 }

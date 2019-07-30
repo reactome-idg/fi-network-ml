@@ -9,13 +9,12 @@ import java.util.Random;
 import javax.sql.DataSource;
 
 import org.junit.Test;
-import org.reactome.harmonizome.config.AppConfig;
-import org.reactome.idg.dao.GeneCorrelationDAO;
+import org.reactome.idg.config.AppConfig;
 import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.ProvenanceDAO;
+import org.reactome.idg.service.GeneCorrelationService;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
-@SuppressWarnings("static-method")
 public class TestGenePairCorrelationDAO
 {
 	@Test
@@ -25,7 +24,7 @@ public class TestGenePairCorrelationDAO
 		{
 			context.register(AppConfig.class);
 			context.refresh();
-			GeneCorrelationDAO geneCorrelationDao = (GeneCorrelationDAO) context.getBean("dao");
+			GeneCorrelationService geneCorrelationDao = (GeneCorrelationService) context.getBean("dao");
 			DataSource ds = (DataSource)context.getBean("dataSource");
 			Random rand = new Random();
 			String geneSymbol1 = "GENE_"+rand.nextInt(1000);
@@ -45,14 +44,14 @@ public class TestGenePairCorrelationDAO
 			Gene gene2;
 			
 			GeneDAO geneDao = (GeneDAO) context.getBean("geneDao");
-			Long g1id = geneDao.addGene(geneSymbol1);
-			Long g2id = geneDao.addGene(geneSymbol2);
+			Integer g1id = geneDao.addGene(geneSymbol1);
+			Integer g2id = geneDao.addGene(geneSymbol2);
 
 			assertTrue(g1id > 0);
 			assertTrue(g2id > 0);
 			
-			gene1 = geneDao.getGene(g1id).get(0);
-			gene2 = geneDao.getGene(g2id).get(0);
+			gene1 = geneDao.getGene(g1id);
+			gene2 = geneDao.getGene(g2id);
 			
 			assertNotNull(gene1);
 			assertNotNull(gene2);

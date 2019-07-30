@@ -1,11 +1,11 @@
-package org.reactome.idg.dao;
+package org.reactome.idg.service;
 
 import java.util.Map;
 
 import org.reactome.idg.model.Gene;
 import org.reactome.idg.model.Provenance;
 
-public interface GeneCorrelationDAO
+public interface GeneCorrelationService
 {
 	public void setCurrentProvenance(Provenance p);
 	
