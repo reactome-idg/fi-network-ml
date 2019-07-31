@@ -12,7 +12,7 @@ public interface GeneDAO
 	 * @param symbol
 	 * @return
 	 */
-	public Integer addGene(String symbol);
+	public Gene addGene(String symbol);
 	
 	/**
 	 * Adds a list of gene symbols to the database. Use this over {@link GeneDAO#addGene(String)} when you have a large number of genes to add,

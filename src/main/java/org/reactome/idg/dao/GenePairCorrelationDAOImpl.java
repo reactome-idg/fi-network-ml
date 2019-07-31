@@ -9,6 +9,7 @@ import org.hibernate.SessionFactory;
 import org.reactome.idg.model.Gene;
 import org.reactome.idg.model.GenePairCorrelation;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
 
 
 /**
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * @author wug
  *
  */
+@Repository
 public class GenePairCorrelationDAOImpl implements GenePairCorrelationDAO {
     
     @Autowired

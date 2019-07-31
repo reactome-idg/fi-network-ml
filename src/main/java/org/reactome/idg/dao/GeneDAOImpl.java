@@ -25,13 +25,13 @@ public class GeneDAOImpl implements GeneDAO {
 	 * @see {@link GeneDAO#addGene(String)}
 	 */
 	@Override
-	public Integer addGene(String symbol)
+	public Gene addGene(String symbol)
 	{
 		Session session = sessionFactory.getCurrentSession();
 		Gene gene = new Gene();
 		gene.setSymbol(symbol);
-		Integer newGeneID = (Integer) session.save(gene);
-		return newGeneID;
+		session.save(gene);
+		return gene;
 	}
 
 	/**

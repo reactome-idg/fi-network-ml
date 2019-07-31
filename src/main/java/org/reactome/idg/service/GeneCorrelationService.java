@@ -3,25 +3,28 @@ package org.reactome.idg.service;
 import java.util.Map;
 
 import org.reactome.idg.model.Gene;
+import org.reactome.idg.model.GenePairCorrelation;
 import org.reactome.idg.model.Provenance;
 
-public interface GeneCorrelationService
-{
-	public void setCurrentProvenance(Provenance p);
-	
-	public Provenance getCurrentProvenance();
-	
-	public Long addGenePair(Gene gene1, Gene gene2, double correlationValue);
-	
-	public Map<Provenance, Double> getCorrelation(Gene gene1, Gene gene2);
+/**
+ * The entry point to access to the database.
+ * @author wug
+ */
+public interface GeneCorrelationService {
+
+    public Map<Provenance, Double> getCorrelation(Gene gene1, Gene gene2);
 	
 	public Double getCorrelation(Gene gene1, Gene gene2, Provenance prov);
 	
-	public void setBatchSize(int batchSize);
-	
-	public int getBatchSize();
-	
-	public int getNumTxOps();
-	
 	public void loadGenePairsFromDataFile(String pathToFile);
+	
+	public void saveCorrelation(GenePairCorrelation correlation);
+	
+	/**
+	 * Fetch the gene for the provided symbol. If there is no gene in the database, then
+	 * a new Gene object will be created and saved into the database.
+	 * @param symbol
+	 * @return
+	 */
+	public Gene fetchGene(String symbol);
 }

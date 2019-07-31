@@ -20,7 +20,6 @@ public class Gene implements Comparable<Gene>
 	private Integer id;
 	
 	public Gene() {
-	    
 	}
 	
 	public String getSymbol()
