@@ -16,6 +16,7 @@ import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
+import org.reactome.idg.model.Provenance;
 
 /**
  * This class is modified from the Python script provided by the Harmonizome project:
@@ -25,8 +26,9 @@ import org.junit.Test;
  */
 public class DataDownloader {
     private final Logger logger =LogManager.getLogger(DataDownloader.class);
-    private final String URL = "https://amp.pharm.mssm.edu/static/hdfs/harmonizome/data/%s/%s";
-    private final String SELECTED_DATA_TYPE = "gene_similarity_matrix_cosine.txt.gz";
+    public final String SOURCE = "Harmonizome";
+    public final String URL = "https://amp.pharm.mssm.edu/static/hdfs/harmonizome/data/%s/%s";
+    public final String SELECTED_DATA_TYPE = "gene_similarity_matrix_cosine.txt.gz";
 
     public DataDownloader() {
     }
@@ -37,6 +39,48 @@ public class DataDownloader {
         }
         DataDownloader loader = new DataDownloader();
         loader.downloadDatasets(args[0]);
+    }
+    
+    /**
+     * Get a list of Provenance objects for the Harmonizome project.
+     * @return
+     * @throws IOException
+     */
+    public List<Provenance> getProvenaces() throws Exception {
+        List<Provenance> list = new ArrayList<>();
+        Map<String, String> datasetToPath = getDataSet2Path();
+        InputStream is = getDataResource();
+        Scanner scanner = new Scanner(is);
+        String line = scanner.nextLine(); // Escape the first head line
+        while (scanner.hasNextLine()) {
+            line = scanner.nextLine();
+            String[] tokens = line.split("\t");
+            if (tokens[13].equalsIgnoreCase("false"))
+                continue;
+            String name = null;
+            // The actual data set name is the combination of the first two tokens
+            if (tokens[1].length() > 0) // We need to use shortname if it is available
+                name = tokens[1] + " " + tokens[2];
+            else {
+                String db = tokens[0];
+                if (db.startsWith("\"")) {
+                    db = db.substring(1, db.length() - 1);
+                }
+                name = db + " " + tokens[2];
+            }
+            Provenance provenance = new Provenance();
+            provenance.setName(name);
+            provenance.setSource(SOURCE);
+            provenance.setCategory(tokens[10]);
+            provenance.setBiologicalEntity(tokens[8]);
+            String path = datasetToPath.get(name);
+            String url = String.format(URL, path, SELECTED_DATA_TYPE);
+            provenance.setUrl(url);
+            list.add(provenance);
+        }
+        scanner.close();
+        is.close();
+        return list;
     }
     
     @Test
@@ -115,8 +159,7 @@ public class DataDownloader {
     }
     
     public List<String> loadReactomeIDGDatasets() throws IOException {
-        String fileName = "Harmonizome_datasets_annotations_062819.txt";
-        InputStream is = getClass().getClassLoader().getResourceAsStream(fileName);
+        InputStream is = getDataResource();
         Scanner scanner = new Scanner(is);
         List<String> rtn = new ArrayList<>();
         String line = scanner.nextLine(); // Escape the first head line
@@ -139,6 +182,12 @@ public class DataDownloader {
         scanner.close();
         is.close();
         return rtn;
+    }
+
+    private InputStream getDataResource() {
+        String fileName = "Harmonizome_datasets_annotations_062819.txt";
+        InputStream is = getClass().getClassLoader().getResourceAsStream(fileName);
+        return is;
     }
     
     public Map<String, String> getDataSet2Path() throws Exception {

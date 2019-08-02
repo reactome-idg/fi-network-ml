@@ -1,5 +1,6 @@
 package org.reactome.idg.service;
 
+import java.util.List;
 import java.util.Map;
 
 import org.reactome.idg.model.Gene;
@@ -20,6 +21,10 @@ public interface GeneCorrelationService {
 	
 	public void saveCorrelation(GenePairCorrelation correlation);
 	
+	public void saveCorrelations(List<GenePairCorrelation> correlations);
+	
+	public void updateGene(Gene gene);
+	
 	/**
 	 * Fetch the gene for the provided symbol. If there is no gene in the database, then
 	 * a new Gene object will be created and saved into the database.
@@ -27,4 +32,12 @@ public interface GeneCorrelationService {
 	 * @return
 	 */
 	public Gene fetchGene(String symbol);
+	
+	/**
+	 * Fetch a matched Provenance object from the database. If there is no match,
+	 * the template will be persisted into the database.
+	 * @param template
+	 * @return
+	 */
+	public Provenance fetchProvenance(Provenance template);
 }

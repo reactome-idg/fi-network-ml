@@ -16,6 +16,8 @@ public interface GenePairCorrelationDAO {
     
     public void save(GenePairCorrelation correlation);
     
+    public void save(List<GenePairCorrelation> correlations);
+    
     public List<GenePairCorrelation> fetch(Gene gene1, Gene gene2);
 
 }

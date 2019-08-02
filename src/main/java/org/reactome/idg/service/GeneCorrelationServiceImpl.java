@@ -1,9 +1,11 @@
 package org.reactome.idg.service;
 
+import java.util.List;
 import java.util.Map;
 
 import org.reactome.idg.dao.GeneDAO;
 import org.reactome.idg.dao.GenePairCorrelationDAO;
+import org.reactome.idg.dao.ProvenanceDAO;
 import org.reactome.idg.model.Gene;
 import org.reactome.idg.model.GenePairCorrelation;
 import org.reactome.idg.model.Provenance;
@@ -19,10 +21,24 @@ public class GeneCorrelationServiceImpl implements GeneCorrelationService {
     private GenePairCorrelationDAO correlationDAO;
     @Autowired
     private GeneDAO geneDAO;
+    @Autowired
+    private ProvenanceDAO provenanceDAO;
 
     public GeneCorrelationServiceImpl() {
     }
     
+    @Override
+    @Transactional
+    public Provenance fetchProvenance(Provenance template) {
+        return provenanceDAO.addProvenance(template);
+    }
+    
+    @Override
+    @Transactional
+    public void updateGene(Gene gene) {
+        geneDAO.updateGene(gene);
+    }
+
     @Override
     @Transactional
     public Gene fetchGene(String symbol) {
@@ -44,9 +60,16 @@ public class GeneCorrelationServiceImpl implements GeneCorrelationService {
         return null;
     }
 
+    @Transactional
     @Override
     public void saveCorrelation(GenePairCorrelation correlation) {
         correlationDAO.save(correlation);
+    }
+    
+    @Transactional
+    @Override
+    public void saveCorrelations(List<GenePairCorrelation> correlations) {
+        correlationDAO.save(correlations);
     }
 
     @Override

@@ -21,12 +21,10 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
         return provenance;
     }
 
-
     @Override
     public List<Provenance> getProvenanceByName(String name)
     {
         Session session = sessionFactory.getCurrentSession();
-
         List<Provenance> provenances = session.createQuery("FROM Provenance where name = :name", Provenance.class)
                                                .setParameter("name", name)
                                                .getResultList();
@@ -39,11 +37,11 @@ public class ProvenanceDAOImpl implements ProvenanceDAO
     @Override
     public Provenance addProvenance(Provenance p) {
         Session session = sessionFactory.getCurrentSession();
-        List<Provenance> results = session.createQuery("from Provenance where name = :name and url = :url and category = :cat and subcategory = :subcat", Provenance.class)
+        List<Provenance> results = session.createQuery("FROM Provenance WHERE name = :name and url = :url and category = :cat and biologicalEntity = :be", Provenance.class)
                                           .setParameter("name", p.getName())
                                           .setParameter("url", p.getUrl())
                                           .setParameter("cat", p.getCategory())
-                                          .setParameter("subcat", p.getSubcategory())
+                                          .setParameter("be", p.getBiologicalEntity())
                                           .getResultList();
 
         if (null == results || results.size() == 0) {

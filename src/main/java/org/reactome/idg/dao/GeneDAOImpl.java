@@ -30,8 +30,15 @@ public class GeneDAOImpl implements GeneDAO {
 		Session session = sessionFactory.getCurrentSession();
 		Gene gene = new Gene();
 		gene.setSymbol(symbol);
-		session.save(gene);
+		session.persist(gene);
+		session.flush();
 		return gene;
+	}
+	
+	@Override
+	public void updateGene(Gene gene) {
+	    Session session = sessionFactory.getCurrentSession();
+	    session.update(gene);
 	}
 
 	/**

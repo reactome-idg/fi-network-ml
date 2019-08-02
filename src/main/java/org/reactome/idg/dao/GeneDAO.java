@@ -8,11 +8,13 @@ import org.reactome.idg.model.Gene;
 public interface GeneDAO
 {
 	/**
-	 * Adds a gene symbol to the database.
+	 * Add a gene symbol to the database.
 	 * @param symbol
 	 * @return
 	 */
 	public Gene addGene(String symbol);
+	
+	public void updateGene(Gene gene);
 	
 	/**
 	 * Adds a list of gene symbols to the database. Use this over {@link GeneDAO#addGene(String)} when you have a large number of genes to add,
