@@ -1,6 +1,10 @@
 package org.reactome.idg.harmonizome;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -12,6 +16,8 @@ import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +31,7 @@ import org.reactome.idg.model.Provenance;
  *
  */
 public class DataDownloader {
-    private final Logger logger =LogManager.getLogger(DataDownloader.class);
+    private final Logger logger = LogManager.getLogger(DataDownloader.class);
     public final String SOURCE = "Harmonizome";
     public final String URL = "https://amp.pharm.mssm.edu/static/hdfs/harmonizome/data/%s/%s";
     public final String SELECTED_DATA_TYPE = "gene_similarity_matrix_cosine.txt.gz";
@@ -35,10 +41,55 @@ public class DataDownloader {
     
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
-            System.err.println("Usage java org.reactome.harmonizome.DataDownloader dirName");
+            System.err.println("Usage java org.reactome.harmonizome.DataDownloader dirName cleanupFolder{true|false}");
         }
         DataDownloader loader = new DataDownloader();
         loader.downloadDatasets(args[0]);
+        if (args.length > 1 && args[1].equals("true"))
+            loader.cleanupDir(args[0]);
+    }
+    
+    /**
+     * All original download files ending with .tgz will be deleted. All processed
+     * files will be zipped and then deleted. 
+     * @param dir
+     * @throws Exception
+     */
+    private void cleanupDir(String dirName) throws Exception {
+        logger.info("Cleaning up the download directory...");
+        long time1 = System.currentTimeMillis();
+        File dir = new File(dirName);
+        File[] list = dir.listFiles();
+        List<File> processedFiles = new ArrayList<>();
+        // Delete all downloaded tgz file
+        for (File file : list) {
+            if (file.getName().endsWith("_processed.txt"))
+                processedFiles.add(file);
+            else if (file.getName().endsWith(".txt.tgz"))
+                file.delete();
+        }
+        // Zip all processed files and then delete them.
+        File dest = new File(dirName, "harmonizome_processed.zip");
+        FileOutputStream fos = new FileOutputStream(dest);
+        ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(fos));
+        int buffer = 100 * 1024;
+        byte[] data = new byte[buffer];
+        int read;
+        for (File file : processedFiles) {
+            FileInputStream fis = new FileInputStream(file);
+            BufferedInputStream bis = new BufferedInputStream(fis, buffer);
+            ZipEntry entry = new ZipEntry(file.getName());
+            zos.putNextEntry(entry);
+            while ((read = bis.read(data, 0, buffer)) > 0) {
+                zos.write(data, 0, read);
+            }
+            bis.close();
+            fis.close();
+            file.delete();
+        }
+        zos.close();
+        long time2 = System.currentTimeMillis();
+        logger.info("Cleaning up is done: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
     }
     
     /**
@@ -114,6 +165,7 @@ public class DataDownloader {
         Map<String, String> datasetToPath = getDataSet2Path();
         List<String> datasets = loadReactomeIDGDatasets();
         int c = 0;
+        DataProcessor processor = new DataProcessor();
         for (String dataset : datasets) {
             String path = datasetToPath.get(dataset);
             if (path == null)
@@ -123,29 +175,50 @@ public class DataDownloader {
                 continue; 
             }
             c ++;
-            download(path, dirName);
-            // download 5 for test. For production, we will parse these files directly
+            String fileName = download(path, dirName);
+            process(new File(fileName), dirName, processor);
+            // download 2 for test. For production, we will parse these files directly
             // into a database
-            if (c == 5)
-                break;
+//            if (c == 2)
+//                break;
         }
         System.out.println("Total download: " + c); // We should get 66 data sets
     }
     
-    public void download(String path, 
-                         String dirName) throws Exception {
+    public String download(String path, 
+                           String dirName) throws Exception {
         String url = String.format(URL, path, SELECTED_DATA_TYPE);
         logger.info("Starting download: " + url);
+        long time1 = System.currentTimeMillis();
         java.net.URL urlObj = new java.net.URL(url);
         InputStream is = urlObj.openStream();
+        // Try to download the zipped file first
+        int size = 100 * 1024;  // Assign 100k for buffer
+        BufferedInputStream bis = new BufferedInputStream(is, size);
+        File gzFile = new File(dirName + "/" + path + ".txt.tgz");
+        FileOutputStream fos = new FileOutputStream(gzFile);
+        BufferedOutputStream bos = new BufferedOutputStream(fos);
+        byte[] content = new byte[size];
+        int read = bis.read(content, 0, size);
+        while (read > 0) {
+            bos.write(content, 0, read);
+            read = bis.read(content, 0, size);
+        }
+        bos.close();
+        bis.close();
+        is.close();
+        
 //        if (true) {
 //            is.close();
 //            return;
 //        }
-        GZIPInputStream zis = new GZIPInputStream(is);
+        // Assign 100K as the buffer to increase the performance
+        FileInputStream fis = new FileInputStream(gzFile);
+        GZIPInputStream zis = new GZIPInputStream(fis, 100 * 1024);
         // There should be only one entry in the file
         Scanner scanner = new Scanner(zis);
-        PrintWriter pw = new PrintWriter(dirName + File.separator + path + ".txt");
+        String fileName = dirName + "/" + path + ".txt";
+        PrintWriter pw = new PrintWriter(fileName);
         String line = null;
         while (scanner.hasNext()) {
            line = scanner.nextLine();
@@ -154,8 +227,40 @@ public class DataDownloader {
         pw.close();
         scanner.close();
         zis.close();
-        is.close();
-        logger.info("Done!");
+        fis.close();
+        long time2 = System.currentTimeMillis();
+        logger.info("Total time for downloading: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
+        return fileName;
+    }
+    
+    @Test
+    public void testProcess() throws Exception {
+        String dir = "datasets/Harmonizome/download/gene_similarity_matrix_cosine";
+        File srcFile = new File(dir, "chea.txt");
+        DataProcessor processor = new DataProcessor();
+        process(srcFile, dir, processor);
+    }
+    
+    /**
+     * Process the downloaded data to get the filtered correlations into another file.
+     * @param file
+     * @throws Exception
+     */
+    private void process(File srcFile,
+                        String resultDir,
+                        DataProcessor processor) throws Exception {
+        logger.info("Starting processing " + srcFile);
+        String fileName = srcFile.getName().split("\\.")[0];
+        File processed = new File(resultDir, fileName + "_processed.txt");
+        File filtered = new File(resultDir, fileName + "_filtered.txt");
+        if (processor.processCorrelations(srcFile, processed, filtered)) {
+            logger.info(srcFile.getName() + " is processed successfully!");
+            // We can just delete the original downloaded file
+            srcFile.delete();
+        }
+        else {
+            logger.info(srcFile.getName() + " is not processed successfully!");
+        }
     }
     
     public List<String> loadReactomeIDGDatasets() throws IOException {
@@ -190,7 +295,7 @@ public class DataDownloader {
         return is;
     }
     
-    public Map<String, String> getDataSet2Path() throws Exception {
+    private Map<String, String> getDataSet2Path() throws Exception {
         // This file was generated by copying the python code:
         // https://amp.pharm.mssm.edu/Harmonizome/static/harmonizomedownloader.py
         // We need to get the path name for each data set
