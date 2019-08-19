@@ -57,7 +57,7 @@ registerDoParallel(detectCores() - 2)
 # names(celllines.metadata)[1] <- "tissue"
 # tissues.metadata <- celllines.metadata
 
-input.path <- "/Users/sanati/Documents/"
+input.path <- "some_input_path/"
 output.path <- "output/"
 
 # -----------------------------------------------
@@ -80,8 +80,7 @@ platform_id <- h5read(source_file, "meta/Sample_platform_id")
 series <- h5read(source_file, "meta/Sample_series_id")
 
 # which samples do we have curated tissue/cellline metadta 
-# msk <- which(samples %in% tissues.metadata$gsm)
-msk <- which(samples %in% celllines.metadata$gsm)
+msk <- which(samples %in% tissues.metadata$gsm)
 
 samples <- samples[msk]
 tissue <- tissue[msk]
