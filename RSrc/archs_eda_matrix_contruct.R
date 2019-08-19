@@ -52,10 +52,11 @@ registerDoParallel(detectCores() - 2)
 
 # -----------------------------------------------
 source("tissue_gsms.R") 
+input.path <- "some_input_path/"
 output.path <- "output/"
 
 # -----------------------------------------------
-source_file <- '/Users/sanati/Documents/human_matrix.h5'
+source_file <- paste0(input.path, 'human_matrix.h5')
 
 if(!file.exists(source_file)){
   print(paste("Downloading compressed gene expression matrix to ", source_file))
@@ -118,14 +119,7 @@ gene.counts <- rownames(expression)[apply(expression, 1, function(x)  length(whi
 expression.norm <- expression[which(rownames(expression) %in% gene.counts),]
 
 # ---------------------------------------------------------------------
-# regress out batch and platform info
-# ---------------------------------------------------------------------
-# fit <- eBayes(lmFit(expression.norm, model.matrix(~ series + platform_id, data = tissues.metadata)))
-# expR <- residuals(fit, expression.norm)
-# expression.adjusted <- expR
-
-# ---------------------------------------------------------------------
-# batch effect correction and PCA html plot 
+# regress out batch effect and compute PCA 
 # ---------------------------------------------------------------------
 adjusted.expression <- limma::removeBatchEffect(expression.norm, batch=tissues.metadata$series, batch2=tissues.metadata$platform_id, 
                                                  design = model.matrix(~ tissue, data = tissues.metadata))
