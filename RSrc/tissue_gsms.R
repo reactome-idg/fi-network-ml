@@ -1152,6 +1152,7 @@ tissues.metadata1 <- tissues.metadata1 %>%
                         group_by(gsm) %>% 
                         filter(sample_count == min(sample_count)) %>% 
                         as.data.frame()
+
 tissues.metadata1 <- distinct(tissues.metadata1, gsm, .keep_all= TRUE)
 
 tissues.metadata <- as.data.frame(rbind(tissues.metadata0, tissues.metadata1))

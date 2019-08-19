@@ -51,13 +51,34 @@ registerDoParallel(detectCores() - 2)
 # registerDoParallel(cl)
 
 # -----------------------------------------------
-# source("tissue_gsms.R") 
+source("tissue_gsms.R") 
+source("celline_gsms.R") 
 
-# source("celline_gsms.R") 
-# names(celllines.metadata)[1] <- "tissue"
+names(celllines.metadata)[1] <- "tissue"
 # tissues.metadata <- celllines.metadata
 
-input.path <- "some_input_path/"
+# for aggregating both cellline and tissue metadata 
+both.dat <- as.data.frame(rbind( tissues.metadata, celllines.metadata))
+
+# TODO: make a function for some sections --------
+gsm.duplicated <- unique(both.dat$gsm[duplicated(both.dat$gsm)])
+both.dat$duplicated <- ifelse(both.dat$gsm %in% gsm.duplicated, 1, 0)
+
+both.dat1 <- both.dat[which(both.dat$duplicated == 1), ]
+both.dat0 <- both.dat[which(both.dat$duplicated == 0), ]
+
+both.dat1 <- both.dat1 %>% 
+  group_by(gsm) %>% 
+  filter(sample_count == min(sample_count)) %>% 
+  as.data.frame()
+
+both.dat1 <- distinct(both.dat1, gsm, .keep_all= TRUE)
+
+both.dat<- as.data.frame(rbind(both.dat0, both.dat1))
+tissues.metadata <- both.dat[order(both.dat$tissue), ]
+
+# -----------------------------------------------
+input.path <- "/Users/sanati/Documents/"
 output.path <- "output/"
 
 # -----------------------------------------------
