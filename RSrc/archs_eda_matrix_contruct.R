@@ -128,7 +128,7 @@ adjusted.expression <- limma::removeBatchEffect(expression.norm, batch=tissues.m
 ae.dat.df <- as.data.frame(adjusted.expression)
 write.csv(ae.dat.df, paste0(output.path, "adjusted_tissue_expression.csv"), row.names = T)
 
-# preserved genes/features between tissues should be above blue reagin on smooth scatter
+# preserved genes/features between tissues should be above blue region on smooth-scatter
 # exp.mad <- apply(adjusted.expression, 1, mad)
 # exp.mean <- apply(adjusted.expression, 1, mean)
 # smoothScatter(x = exp.mean, y = exp.mad)
