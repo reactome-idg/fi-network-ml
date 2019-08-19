@@ -51,8 +51,13 @@ registerDoParallel(detectCores() - 2)
 # registerDoParallel(cl)
 
 # -----------------------------------------------
-source("tissue_gsms.R") 
-input.path <- "some_input_path/"
+# source("tissue_gsms.R") 
+
+# source("celline_gsms.R") 
+# names(celllines.metadata)[1] <- "tissue"
+# tissues.metadata <- celllines.metadata
+
+input.path <- "/Users/sanati/Documents/"
 output.path <- "output/"
 
 # -----------------------------------------------
@@ -75,7 +80,8 @@ platform_id <- h5read(source_file, "meta/Sample_platform_id")
 series <- h5read(source_file, "meta/Sample_series_id")
 
 # which samples do we have curated tissue/cellline metadta 
-msk <- which(samples %in% tissues.metadata$gsm)
+# msk <- which(samples %in% tissues.metadata$gsm)
+msk <- which(samples %in% celllines.metadata$gsm)
 
 samples <- samples[msk]
 tissue <- tissue[msk]
@@ -165,7 +171,7 @@ tag.pca.outlier <- function(my.vector, sampleqc){
   vec <- as.vector(do.call(cbind, z.score))
   
   samplepca.outliers <- as.data.frame(cbind(sampleqc, vec))
-  names(samplepca.outliers) <- c("Sample_ID", "pca_outlier")
+  names(samplepca.outliers) <- c("SampleID", "pca_outlier")
   samplepca.outliers[samplepca.outliers=="outlier"] <- 1
   samplepca.outliers[samplepca.outliers=="non-outlier"] <- 0
   
