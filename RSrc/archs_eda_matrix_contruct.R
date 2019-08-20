@@ -116,10 +116,6 @@ tissues.metadata$series <- series
 # filter samples by tissue or cell line of interest (in focused studies or local machine)
 # NOTE: in large scale studies, only filter by samples with curated metadata on tissue/cellline
 # ---------------------------------------------------------------------
-# samp <- sample(samples, 2000)
-# sample.locations <- which(samples %in% samp)
-# series <- series[sample.locations]
-# tissues.metadata <- tissues.metadata[sample.locations, ]
 sample.locations <- msk
 
 # Unit of measure of these expressions are gene counts 
