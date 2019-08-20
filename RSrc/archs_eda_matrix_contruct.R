@@ -8,21 +8,19 @@ usePackage <- function(p)
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
-# BiocManager::install("limma")
-# BiocManager::install("rhdf5")
-# BiocManager::install("preprocessCore")
-# BiocManager::install("GEOquery")
+BiocManager::install("limma")
+BiocManager::install("rhdf5")
+BiocManager::install("preprocessCore")
 
-# usePackage("tidyverse")
-# usePackage("doParalle")
-# usePackage("tools")
-# usePackage("rentrez")
-# usePackage("doParallel")
-# usePackage("foreach")
-# usePackage("reshape")
-# usePackage("dply")
-# usePackage("plotly")
-# usePackage("plyr")
+usePackage("tidyverse")
+usePackage("doParalle")
+usePackage("tools")
+usePackage("rentrez")
+usePackage("foreach")
+usePackage("reshape")
+usePackage("dply")
+usePackage("plotly")
+usePackage("plyr")
 
 require("rhdf5")
 require("tools")
@@ -33,7 +31,6 @@ require("doParallel")
 require("limma")
 require("reshape")
 require("tidyverse")
-require("edgeR")
 require("plotly")
 require("plyr")
 require("foreach")
@@ -41,7 +38,7 @@ require("doParallel")
 # -----------------------------------------------
 options(stringsAsFactors = FALSE)
 set.seed(1234)
-registerDoParallel(detectCores() - 2)
+# registerDoParallel(detectCores() - 4)
 # -----------------------------------------------
 # or use this higher spec 
 # -----------------------------------------------
@@ -119,13 +116,14 @@ tissues.metadata$series <- series
 # filter samples by tissue or cell line of interest (in focused studies or local machine)
 # NOTE: in large scale studies, only filter by samples with curated metadata on tissue/cellline
 # ---------------------------------------------------------------------
-samp <- sample(samples, 2000)
-sample.locations <- which(samples %in% samp)
-series <- series[sample.locations]
-tissues.metadata <- tissues.metadata[sample.locations, ]
+# samp <- sample(samples, 2000)
+# sample.locations <- which(samples %in% samp)
+# series <- series[sample.locations]
+# tissues.metadata <- tissues.metadata[sample.locations, ]
+sample.locations <- msk
 
 # Unit of measure of these expressions are gene counts 
-expression <- h5read(source_file, "data/expression", index=list(1:length(genes), sample.locations))
+expression <- h5read(source_file, "data/expression", index=list(1:length(genes), msk))
 H5close()
 
 # --------------------------------------------------------------------
