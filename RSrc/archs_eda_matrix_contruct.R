@@ -55,30 +55,31 @@ source("tissue_gsms.R")
 source("celline_gsms.R") 
 
 names(celllines.metadata)[1] <- "tissue"
-# tissues.metadata <- celllines.metadata
+# tissues.metadata <- celllines.metadata # cell line only usecase 
 
 # for aggregating both cellline and tissue metadata 
-both.dat <- as.data.frame(rbind( tissues.metadata, celllines.metadata))
+both.dat <- as.data.frame(rbind(tissues.metadata, celllines.metadata))
 
-# TODO: make a function for some sections --------
+# remove duplicates between cell line and tissue metadata ------
 gsm.duplicated <- unique(both.dat$gsm[duplicated(both.dat$gsm)])
-both.dat$duplicated <- ifelse(both.dat$gsm %in% gsm.duplicated, 1, 0)
 
+both.dat$duplicated <- ifelse(both.dat$gsm %in% gsm.duplicated, 1, 0)
 both.dat1 <- both.dat[which(both.dat$duplicated == 1), ]
 both.dat0 <- both.dat[which(both.dat$duplicated == 0), ]
 
+# keep annotations with cell line tags (may be biologically simpler)
 both.dat1 <- both.dat1 %>% 
   group_by(gsm) %>% 
-  filter(sample_count == min(sample_count)) %>% 
+  filter(grepl("cl",tissue)) %>% 
   as.data.frame()
 
 both.dat1 <- distinct(both.dat1, gsm, .keep_all= TRUE)
-
 both.dat<- as.data.frame(rbind(both.dat0, both.dat1))
 tissues.metadata <- both.dat[order(both.dat$tissue), ]
 
 # -----------------------------------------------
-input.path <- "/Users/sanati/Documents/"
+# absolute paths to input and output files
+input.path <- "input/"
 output.path <- "output/"
 
 # -----------------------------------------------
@@ -116,7 +117,7 @@ tissues.metadata$series <- series
 
 # ---------------------------------------------------------------------
 # filter samples by tissue or cell line of interest (in focused studies or local machine)
-# in large scale studies, only filter by samples with curated metadata on tissue/cellline
+# NOTE: in large scale studies, only filter by samples with curated metadata on tissue/cellline
 # ---------------------------------------------------------------------
 samp <- sample(samples, 2000)
 sample.locations <- which(samples %in% samp)
@@ -155,8 +156,8 @@ ae.dat.df <- as.data.frame(adjusted.expression)
 write.csv(ae.dat.df, paste0(output.path, "adjusted_tissue_expression.csv"), row.names = T)
 
 # preserved genes/features between tissues should be above blue region on smooth-scatter
-# exp.mad <- apply(adjusted.expression, 1, mad)
-# exp.mean <- apply(adjusted.expression, 1, mean)
+exp.mad <- apply(adjusted.expression, 1, mad)
+exp.mean <- apply(adjusted.expression, 1, mean)
 # smoothScatter(x = exp.mean, y = exp.mad)
 
 # evaluate PCs 
@@ -225,17 +226,23 @@ htmlwidgets::saveWidget(as_widget(p2), paste0(output.path,"tissue_expression_pca
 # Conduct univariate analysis to see if a signal exists by tissue (pheno)
 # tissue ~ gene_i - on a gene X sample should evaluate a long tail distribution
 # -----------------------------------------------------------------------
-# pvals <- adply(adjusted.expression, 1, function(x){
-#   dat <- cbind(x, tissues.metadata$tissue)
-#   dat <- as.data.frame(dat)
-#   colnames(dat) <- c("gene",  "tissue")
-#   colnames(dat2) <- "gene"
-# 
-#   dat$tissue <- as.factor(dat$tissue)
-#   f <- as.formula("~ gene")
-#   fit <- eBayes(lmFit(dat$tissue, model.matrix(f, data = dat2)))
-#   pval <- fit$p.value[2]
-#   return(pval)
-# }, .parallel = T, .expand = F)
-# colnames(pvals) <- c("gene", "pval")
-# hist(pvals$pval, xlab='P-Values of tissue ~ gene_i', breaks=200, col = 'lightblue', main = 'ARCHS tissue metadata ~ each gene's gene expression')
+tissues.metadata$tissue_factors <- as.numeric(as.factor(tissues.metadata$tissue))
+
+pvals <- adply(adjusted.expression, 1, function(x){
+  dat <- cbind(x, tissues.metadata$tissue_factors)
+  dat <- as.data.frame(dat)
+  colnames(dat) <- c("gene",  "tissue")
+  dat$gene <- as.numeric(dat$gene)
+  dat$tissue <- as.numeric(dat$tissue)
+  f <- as.formula("~ gene")
+  fit <- eBayes(lmFit(dat$tissue, model.matrix(f, data = dat)))
+  pval <- fit$p.value[2]
+  return(pval)
+}, .parallel = T, .expand = F)
+colnames(pvals) <- c("gene", "pval")
+
+# save non-ggplot or plotly plots in pdf file 
+pdf(file = paste0(output.path, "test.pdf"),  wi = 10, he = 8)
+hist(pvals$pval, xlab='P-Values of tissue ~ gene_i', breaks=200, col = 'lightblue', main = "ARCHS tissue metadata ~ each gene's gene expression")
+smoothScatter(x = exp.mean, y = exp.mad, xlab = "Mean", ylab = "Median Absolute Deviation (MAD)")
+dev.off()
