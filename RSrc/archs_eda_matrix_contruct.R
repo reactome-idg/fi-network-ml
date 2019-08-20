@@ -8,19 +8,19 @@ usePackage <- function(p)
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
-BiocManager::install("limma")
-BiocManager::install("rhdf5")
-BiocManager::install("preprocessCore")
-
-usePackage("tidyverse")
-usePackage("doParalle")
-usePackage("tools")
-usePackage("rentrez")
-usePackage("foreach")
-usePackage("reshape")
-usePackage("dply")
-usePackage("plotly")
-usePackage("plyr")
+# BiocManager::install("limma")
+# BiocManager::install("rhdf5")
+# BiocManager::install("preprocessCore")
+# 
+# usePackage("tidyverse")
+# usePackage("doParalle")
+# usePackage("tools")
+# usePackage("rentrez")
+# usePackage("foreach")
+# usePackage("reshape")
+# usePackage("dply")
+# usePackage("plotly")
+# usePackage("plyr")
 
 require("rhdf5")
 require("tools")
@@ -34,7 +34,6 @@ require("tidyverse")
 require("plotly")
 require("plyr")
 require("foreach")
-require("doParallel")
 # -----------------------------------------------
 options(stringsAsFactors = FALSE)
 set.seed(1234)
@@ -73,6 +72,13 @@ both.dat1 <- both.dat1 %>%
 both.dat1 <- distinct(both.dat1, gsm, .keep_all= TRUE)
 both.dat<- as.data.frame(rbind(both.dat0, both.dat1))
 tissues.metadata <- both.dat[order(both.dat$tissue), ]
+
+sub.sample <- T
+
+if (sub.sample) {
+  samp <- sample(tissues.metadata$gsm, 1000)
+  tissues.metadata <- tissues.metadata[which(tissues.metadata$gsm %in% samp), ]
+}
 
 # -----------------------------------------------
 # absolute paths to input and output files
