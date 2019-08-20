@@ -116,8 +116,6 @@ tissues.metadata$series <- series
 # filter samples by tissue or cell line of interest (in focused studies or local machine)
 # NOTE: in large scale studies, only filter by samples with curated metadata on tissue/cellline
 # ---------------------------------------------------------------------
-sample.locations <- msk
-
 # Unit of measure of these expressions are gene counts 
 expression <- h5read(source_file, "data/expression", index=list(1:length(genes), msk))
 H5close()
@@ -129,7 +127,7 @@ expression <- log2(expression + 1)
 expression <- normalize.quantiles(expression)
 
 rownames(expression) <- genes
-colnames(expression) <- samples[sample.locations]
+colnames(expression) <- samples
 
 # batch effects in gene expression
 batchid <- match(series, unique(series))
