@@ -263,7 +263,7 @@ public class DataDownloader {
         }
     }
     
-    public List<String> loadReactomeIDGDatasets() throws IOException {
+    public List<String> loadReactomeIDGDatasets(boolean filterToReactome) throws IOException {
         InputStream is = getDataResource();
         Scanner scanner = new Scanner(is);
         List<String> rtn = new ArrayList<>();
@@ -271,7 +271,7 @@ public class DataDownloader {
         while (scanner.hasNextLine()) {
             line = scanner.nextLine();
             String[] tokens = line.split("\t");
-            if (tokens[13].equalsIgnoreCase("false"))
+            if (filterToReactome && tokens[13].equalsIgnoreCase("false"))
                 continue;
             // The actual data set name is the combination of the first two tokens
             if (tokens[1].length() > 0) // We need to use shortname is it is available
@@ -287,6 +287,15 @@ public class DataDownloader {
         scanner.close();
         is.close();
         return rtn;
+    }
+    
+    /**
+     * Default loading is implemented for loading data that can be used by Reactome only.
+     * @return
+     * @throws IOException
+     */
+    public List<String> loadReactomeIDGDatasets() throws IOException {
+        return loadReactomeIDGDatasets(true);
     }
 
     private InputStream getDataResource() {
