@@ -9,7 +9,9 @@ import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,17 +30,30 @@ public class DataProcessor {
     public static final int FIRST_INDEX = 3;
     public static final double VALUE_THRESHOLD = 0.50d;
     public static final int GENE_NUMBER_THRESHOLD = 12000; // Make sure a similarity file has more than 12,000 genes
+    private static final String ALL_GENE_FILE_NAME = "Reactome_All_Genes.txt";
 
     // Keep the target genes we want to investiage
     private Set<String> allGenes;
     
     public DataProcessor() {
     }
-    
-    @SuppressWarnings("unchecked")
+   
     private Set<String> getAllGenes() throws Exception {
         if (allGenes != null)
             return allGenes;
+        // Need to load all human genes from a Reactome database
+        InputStream is = getClass().getClassLoader().getResourceAsStream(ALL_GENE_FILE_NAME);
+        allGenes = new HashSet<>();
+        Scanner scanner = new Scanner(is);
+        while (scanner.hasNextLine())
+            allGenes.add(scanner.nextLine());
+        scanner.close();
+        logger.info("Total human genes from Reactome: " + allGenes.size());
+        return allGenes;
+    }
+    
+    @SuppressWarnings("unchecked")
+    public void dumpAllGenes(String fileName) throws Exception {
         // Need to load all human genes from a Reactome database
         InputStream is = getClass().getClassLoader().getResourceAsStream("db.properties");
         Properties prop = new Properties();
@@ -53,14 +68,18 @@ public class DataProcessor {
                                                                        ReactomeJavaConstants.species,
                                                                        "=",
                                                                        human);
-        allGenes = new HashSet<>();
+        Set<String> allGenes = new HashSet<>();
         for (GKInstance refGene : refGenes) {
             String gene = (String) refGene.getAttributeValue(ReactomeJavaConstants.geneName);
             if (gene != null)
                 allGenes.add(gene);
         }
         logger.info("Total human genes from Reactome: " + allGenes.size());
-        return allGenes;
+        PrintWriter writer = new PrintWriter(fileName);
+        for (String gene : allGenes.stream().sorted().collect(Collectors.toList()))
+            writer.println(gene);
+        writer.close();
+        logger.info("Saved into " + fileName);
     }
 
     /**
