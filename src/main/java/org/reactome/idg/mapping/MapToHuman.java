@@ -24,7 +24,8 @@ import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class MapToHuman
 {
-//	private static final String EMPTY_TOKEN = "<EMTPY>";
+private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
+	//	private static final String EMPTY_TOKEN = "<EMTPY>";
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
 	public static void main(String args[]) throws IOException, URISyntaxException
 	{
@@ -46,7 +47,7 @@ public class MapToHuman
 		String stringDBFile;
 		// Path to input Panther file. Obtain the file here: ftp://ftp.pantherdb.org/ortholog/current_release/Orthologs_HCOP.tar.gz
 		// Panther file contains UniProt ACCESSIONS - the StringDB file for YEAST contains UniProt GENE NAMES!!
-		String pantherFile = "src/main/resources/Orthologs_HCOP";
+		String pantherFile = PATH_TO_DATA_FILES + "Orthologs_HCOP";
 		// Output file: non-human PPI's mapped to human (via Panther mappings).
 		String mappedToHumanFile = speciesName + "_mapped_to_human.tsv";
 		// Read the Panther file - it's big so maybe filter out the lines we want and rewrite those to a temp file.
@@ -204,8 +205,8 @@ public class MapToHuman
 
 		// Now we need to process StringDB files.
 		int experimentsAndDBScore = 0;
-		String stringDBProteinActionsFile = "src/main/resources/" + stringDBSpeciesCode + ".protein.actions.v11.0.txt";
-		String stringDBProteinLinksFile = "src/main/resources/" + stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
+		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.actions.v11.0.txt";
+		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
 		String ppisWithExperimentsScoreFile = stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
 		Set<String> interactionsWithExperiments = new HashSet<>();
 		// First we have to filter for interactions in protein.links.full where experiment > 0
@@ -330,41 +331,12 @@ public class MapToHuman
 								useStringDBMapping = true;
 								numMappingsInStringDBOnly++;
 							}
-							// Proteins are in mappings if: both are in the gene-name-to-gene-accession map
-							// AND the gene-name-to-gene-accession maps to a value that is a key in the other-species-to-Human map.
-//							boolean proteinsAreInMapping = uniProtGeneNameToAccessionMapping.containsKey(protein1) && uniProtGeneNameToAccessionMapping.containsKey(protein2)
-//															&& uniProtGeneNameToAccessionMapping.get(protein1).stream()
-//																								.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein))
-//															&& uniProtGeneNameToAccessionMapping.get(protein2).stream()
-//																								.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein));
-//
-//							if (!proteinsAreInMapping)
-//							{
-//								// If the the uniprot-gene-name-to-Accession didn't have a mapping for these proteins, lets' try looking in the StringDB-to-Accession mapping...
-//								// We'll check the proteins separately...
-//								proteinsAreInMapping = uniProtStringDBsToAccessionMapping.containsKey(stringDBSpeciesCode + "." + protein1)
-//														&& uniProtStringDBsToAccessionMapping.containsKey(stringDBSpeciesCode + "." + protein2)
-//														&& uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein1).stream()
-//																							.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein))
-//														&& uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein2).stream()
-//																							.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein));
-//
-//								if (proteinsAreInMapping)
-//								{
-//									numMappingsInStringDBOnly++;
-//									useStringDBMapping = true;
-//								}
-//							}
 
 							numBindingAndExperimentsGt0++;
 							if (proteinsAreInMapping)
 							{
 								numPPIsInMapping++;
 								// Ok we need to get the accession that is also in the PANTHER species mapping...
-
-//								String protein1Accession = uniProtGeneNameToAccessionMapping.get(protein1).stream().sorted().findFirst().get() ;
-//								String protein2Accession = uniProtGeneNameToAccessionMapping.get(protein2).stream().sorted().findFirst().get() ;
-
 								String protein1Accession = protein1MapsGeneNameToAccession
 															? uniProtGeneNameToAccessionMapping.get(protein1).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
 															: uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein1)
@@ -450,6 +422,10 @@ public class MapToHuman
 				System.out.println("Number of \"binding\" StringDB interactions (PPIs) that mapped between species: "+outLines.size() + "; out of a total of "+parser.getRecordNumber() + " records.");
 				System.out.println("Number of proteins that were only mapped as StringDB-to-UniProt Accession: " + numMappingsInStringDBOnly);
 				System.out.println("Number of proteins that could not map to UniProt accessions: " + unmappedIdentifiers.size());
+				for (String unmapped : unmappedIdentifiers)
+				{
+					unmappedWriter.write(unmapped + "\n");
+				}
 				System.out.println("Number of proteins that could not map to human: " + noHumanMappedIdentifiers.size());
 				System.out.println("Number of proteins identifies that caused NPEs: " + npeIdentifiers.size());
 			}
