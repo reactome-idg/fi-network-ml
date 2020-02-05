@@ -4,6 +4,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,9 +40,21 @@ public class DataDownloader {
     public DataDownloader() {
     }
     
+    /**
+     * There is two operations can be selected here: generate a gene list file and perform download. If
+     * there is only one argument provided, a gene list file will be generated into the paramter.
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.err.println("Usage java org.reactome.harmonizome.DataDownloader dirName cleanupFolder{true|false}");
+            return;
+        }
+        if (args.length == 1) {
+            DataProcessor dataProcessor = new DataProcessor();
+            dataProcessor.dumpAllGenes(args[0]);
+            return;
         }
         DataDownloader loader = new DataDownloader();
         loader.downloadDatasets(args[0]);
@@ -61,15 +74,26 @@ public class DataDownloader {
         File dir = new File(dirName);
         File[] list = dir.listFiles();
         List<File> processedFiles = new ArrayList<>();
+        List<File> filteredFiles = new ArrayList<>();
         // Delete all downloaded tgz file
         for (File file : list) {
             if (file.getName().endsWith("_processed.txt"))
                 processedFiles.add(file);
+            else if (file.getName().endsWith("_filtered.txt")) 
+                filteredFiles.add(file);
             else if (file.getName().endsWith(".txt.tgz"))
                 file.delete();
         }
         // Zip all processed files and then delete them.
         File dest = new File(dirName, "harmonizome_processed.zip");
+        zipFiles(processedFiles, dest);
+        dest = new File(dirName, "harmonizome_filtered.zip");
+        zipFiles(filteredFiles, dest);
+        long time2 = System.currentTimeMillis();
+        logger.info("Cleaning up is done: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
+    }
+
+    private void zipFiles(List<File> processedFiles, File dest) throws FileNotFoundException, IOException {
         FileOutputStream fos = new FileOutputStream(dest);
         ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(fos));
         int buffer = 100 * 1024;
@@ -88,8 +112,6 @@ public class DataDownloader {
             file.delete();
         }
         zos.close();
-        long time2 = System.currentTimeMillis();
-        logger.info("Cleaning up is done: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
     }
     
     /**
@@ -193,7 +215,7 @@ public class DataDownloader {
         java.net.URL urlObj = new java.net.URL(url);
         InputStream is = urlObj.openStream();
         // Try to download the zipped file first
-        int size = 100 * 1024;  // Assign 100k for buffer
+        int size = 1000 * 1024;  // Assign 1000k for buffer
         BufferedInputStream bis = new BufferedInputStream(is, size);
         File gzFile = new File(dirName + "/" + path + ".txt.tgz");
         FileOutputStream fos = new FileOutputStream(gzFile);
@@ -212,9 +234,9 @@ public class DataDownloader {
 //            is.close();
 //            return;
 //        }
-        // Assign 100K as the buffer to increase the performance
+        // Assign 1000K as the buffer to increase the performance
         FileInputStream fis = new FileInputStream(gzFile);
-        GZIPInputStream zis = new GZIPInputStream(fis, 100 * 1024);
+        GZIPInputStream zis = new GZIPInputStream(fis, 1000 * 1024);
         // There should be only one entry in the file
         Scanner scanner = new Scanner(zis);
         String fileName = dirName + "/" + path + ".txt";

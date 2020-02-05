@@ -202,23 +202,50 @@ write.csv(samplepca.outlier, paste0(output.path, "sample_outliers_tissue.csv"), 
 # ---------------------------------------------------------------------
 # plot and save 
 # ---------------------------------------------------------------------
-batchid <- as.factor(batchid)
+# batchid <- as.factor(batchid)
+# 
+# g1 <- ggplot(plotdata, aes(x=PC1, y=PC2, color=batchid)) + 
+#   geom_point(aes( 
+#     text = paste("SampleID: ", rownames(PC$rotation), 
+#                  "</br> outlier_tag: ", samplepca.outlier$pca_outlier))) + 
+#   labs(title = "")
+# p1 <- plotly::ggplotly(g1)
+# g2 <- ggplot(plotdata, aes(x=PC1, y=PC2, color=tissue)) + 
+#   geom_point(aes( 
+#     text = paste("SampleID: ", rownames(PC$rotation), 
+#                  "</br> outlier_tag: ", samplepca.outlier$pca_outlier))) + 
+#   labs(title = "")
+# p2 <- plotly::ggplotly(g2)
+# 
+# htmlwidgets::saveWidget(as_widget(p1), paste0(output.path, "batchid_expression_pca.html"))
+# htmlwidgets::saveWidget(as_widget(p2), paste0(output.path,"tissue_expression_pca.html"))
 
-g1 <- ggplot(plotdata, aes(x=PC1, y=PC2, color=batchid)) + 
-  geom_point(aes( 
-    text = paste("SampleID: ", rownames(PC$rotation), 
-                 "</br> outlier_tag: ", samplepca.outlier$pca_outlier))) + 
-  labs(title = "")
-p1 <- plotly::ggplotly(g1)
-g2 <- ggplot(plotdata, aes(x=PC1, y=PC2, color=tissue)) + 
-  geom_point(aes( 
-    text = paste("SampleID: ", rownames(PC$rotation), 
-                 "</br> outlier_tag: ", samplepca.outlier$pca_outlier))) + 
-  labs(title = "")
-p2 <- plotly::ggplotly(g2)
+# PLOT PER TISSUE --------------------------------------------------
+tissue.ls <- unique(tissues.metadata$tissue)
 
-htmlwidgets::saveWidget(as_widget(p1), paste0(output.path, "batchid_expression_pca.html"))
-htmlwidgets::saveWidget(as_widget(p2), paste0(output.path,"tissue_expression_pca.html"))
+eda.dat <- lapply(tissue.ls, function(x){
+  dat.sliced <- tissues.metadata[which(tissues.metadata$tissue %in% x), ]
+  dat <- adjusted.expression[ ,which(colnames(adjusted.expression) %in% dat.sliced$gsm)]
+  # evaluate PCs
+  PC <- prcomp(dat, scale.=T, center = T)
+  # Plot first 2 PCs
+  plotdata <- data.frame(SampleID=rownames(PC$rotation),
+                         PC1=PC$rotation[,1],
+                         PC2=PC$rotation[,2])
+  plotdata$tissue <- x
+  plotdata$batchid <- as.factor(dat.sliced$series)
+
+  samplepca.outlier <- tag.pca.outlier(plotdata$PC1, sampleqc = rownames(PC$rotation))
+  g1 <- ggplot(plotdata, aes(x=PC1, y=PC2, color=batchid)) +
+    geom_point(aes(
+      text = paste("SampleID: ", rownames(PC$rotation),
+                   "</br> outlier_tag: ", samplepca.outlier$pca_outlier))) +
+    labs(title = "ARCHS4 Curated Data PCA", subtitle = x)
+  p1 <- plotly::ggplotly(g1)
+
+  write.csv(samplepca.outlier, paste0(output.path, paste0(x, "-sample-outliers-tissue.csv")), row.names = F)
+  htmlwidgets::saveWidget(as_widget(p1), paste0(output.path, paste0(x, "-batchid-expression-pca.html")), selfcontained = TRUE)
+})
 
 # -----------------------------------------------------------------------
 # Conduct univariate analysis to see if a signal exists by tissue (pheno)
