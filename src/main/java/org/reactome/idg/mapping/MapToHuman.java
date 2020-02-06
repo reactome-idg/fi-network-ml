@@ -9,6 +9,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,14 +29,16 @@ import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class MapToHuman
 {
-	private static URI uniprotMappingServiceURI = null;
 	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
 	private static final String HUMAN = "HUMAN";
 	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 	//	private static final String EMPTY_TOKEN = "<EMTPY>";
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
-	
-	static
+
+	private String outputPath = "";
+	private static URI uniprotMappingServiceURI = null;
+
+	public MapToHuman() throws URISyntaxException
 	{
 		try
 		{
@@ -43,17 +47,21 @@ public class MapToHuman
 		catch (URISyntaxException e)
 		{
 			e.printStackTrace();
+			throw e;
 		}
 	}
 	
 	public static void main(String[] args) throws IOException, URISyntaxException
 	{
-		mapOtherSpeciesToHuman("YEAST", "4932", true);
+		MapToHuman mapper = new MapToHuman();
+		mapper.mapOtherSpeciesToHuman("YEAST", "4932", true);
 //		mapOtherSpeciesToHuman("SCHPO", "4896", true);
 	}
 	
-	private static void mapOtherSpeciesToHuman(String speciesName, String stringDBSpeciesCode, boolean allowBidirectionalMappings) throws FileNotFoundException, IOException, URISyntaxException
+	private void mapOtherSpeciesToHuman(String speciesName, String stringDBSpeciesCode, boolean allowBidirectionalMappings) throws FileNotFoundException, IOException, URISyntaxException
 	{
+		this.outputPath = "output/"+speciesName+"_results/";
+		Files.createDirectories(Paths.get(this.outputPath));
 //		boolean allowBidirectionalMappings = false;
 		// Mapping of UniProt identifiers from the Other species to Human, according to PANTHER.
 		Map<String, Set<String>> otherSpeciesMappedToHuman = new HashMap<>();
@@ -225,7 +233,7 @@ public class MapToHuman
 		int experimentsAndDBScore = 0;
 		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.actions.v11.0.txt";
 		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
-		String ppisWithExperimentsScoreFile = stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
+		String ppisWithExperimentsScoreFile = outputPath + stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
 		Set<String> interactionsWithExperiments = new HashSet<>();
 		// First we have to filter for interactions in protein.links.full where experiment > 0
 		try (FileReader reader = new FileReader(stringDBProteinLinksFile);
@@ -279,11 +287,13 @@ public class MapToHuman
 //		List<String> interactors = new ArrayList<>();
 //		Map<String, String> ensembl2UniprotMappings = new HashMap<>();
 //		Set<String> identifiersToMapToUniprot = new HashSet<>();
+		
+		
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
-				FileWriter writer = new FileWriter(speciesName + "_" + PPIS_MAPPED_TO_HUMAN_FILE);
-				FileWriter mappingFailureReasons = new FileWriter(speciesName + "_mapping_errors_details.log");
-				FileWriter unmappedWriter = new FileWriter("unmapped_from_stringdb.txt");
-				FileWriter noMappingToHumanWriter = new FileWriter("no_mapping_to_human.txt"))
+				FileWriter writer = new FileWriter(outputPath + speciesName + "_" + PPIS_MAPPED_TO_HUMAN_FILE);
+				FileWriter mappingFailureReasons = new FileWriter(outputPath + speciesName + "_mapping_errors_details.log");
+				FileWriter unmappedWriter = new FileWriter(outputPath + speciesName + "_unmapped_from_stringdb.txt");
+				FileWriter noMappingToHumanWriter = new FileWriter(outputPath + speciesName + "_no_mapping_to_human.txt"))
 		{
 			Set<String> unmappedIdentifiers = new HashSet<>();
 			Set<String> noHumanMappedIdentifiers = new HashSet<>();
@@ -461,7 +471,7 @@ public class MapToHuman
 		}
 	}
 
-	private static Map<String, Set<String>> mapToUniProtAccessions(String stringDBSpeciesCode, Set<String> interactionsWithExperiments, UniprotDB mappingSource) throws URISyntaxException, IOException
+	private Map<String, Set<String>> mapToUniProtAccessions(String stringDBSpeciesCode, Set<String> interactionsWithExperiments, UniprotDB mappingSource) throws URISyntaxException, IOException
 	{
 		// Now map the UniProt Gene Names (from StringDB) to UniProt Accessions
 		Set<String> identifiersToMapToUniprot = new HashSet<>();
@@ -475,7 +485,7 @@ public class MapToHuman
 		}
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = getMappingsFromUniProt(identifiersToMapToUniprot, mappingSource);
 
-		try(FileWriter writer = new FileWriter(stringDBSpeciesCode + "_mappedToUniProt.tsv"))
+		try(FileWriter writer = new FileWriter(this.outputPath + stringDBSpeciesCode + "_mappedToUniProt.tsv"))
 		{
 			for (Entry<String, Set<String>> entry : uniProtGeneNameToAccessionMapping.entrySet())
 			{
