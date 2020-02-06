@@ -13,21 +13,26 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.reactome.idg.util.UniprotFileRetriever;
 import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class MapToHuman
 {
-private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
+	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
+	private static final String HUMAN = "HUMAN";
+	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 	//	private static final String EMPTY_TOKEN = "<EMTPY>";
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
-	public static void main(String args[]) throws IOException, URISyntaxException
+	public static void main(String[] args) throws IOException, URISyntaxException
 	{
 		mapOtherSpeciesToHuman("YEAST", "4932", true);
 //		mapOtherSpeciesToHuman("SCHPO", "4896", true);
@@ -62,7 +67,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 //			lineCount++;
 //			if (lineCount % 100000 == 0)
 //			{
-//				System.out.println(lineCount + " lines read from PANTHER Orthologs.");
+//				logger.info(lineCount + " lines read from PANTHER Orthologs.");
 //			}
 			while (line != null)
 			{
@@ -71,15 +76,15 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				String species1 = (parts[0].split("\\|"))[0];
 				String species2 = (parts[1].split("\\|"))[0];
 				String geneFamily = parts[4];
-				boolean lineIsUseful = !species1.equals(species2) && ((allowBidirectionalMappings && species1.equals("HUMAN") && species2.equals(speciesName))
-																	|| (species1.equals(speciesName) && species2.equals("HUMAN")));
+				boolean lineIsUseful = !species1.equals(species2) && ((allowBidirectionalMappings && species1.equals(HUMAN) && species2.equals(speciesName))
+																	|| (species1.equals(speciesName) && species2.equals(HUMAN)));
 //				boolean lineIsUseful = ((parts[0].startsWith("HUMAN") && parts[1].startsWith(speciesName)) || (parts[0].startsWith(speciesName) && parts[1].startsWith("HUMAN")));
 				if (lineIsUseful)
 				{
 					String[] humanParts;
 					String[] otherSpeciesParts;
 
-					if (species1.equals("HUMAN"))
+					if (species1.equals(HUMAN))
 					{
 						humanParts = parts[0].split("\\|");
 						otherSpeciesParts = parts[1].split("\\|");
@@ -100,7 +105,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 						s = humanParts[i];
 						if (s.startsWith("UniProt"))
 						{
-							humanIdentifier = s.substring(s.indexOf("=") + 1);
+							humanIdentifier = s.substring(s.indexOf('=') + 1);
 							done = true;
 						}
 						i++;
@@ -112,13 +117,13 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 						s = otherSpeciesParts[i];
 						if (s.startsWith("UniProt"))
 						{
-							otherSpeciesIdentifier = s.substring(s.indexOf("=") + 1);
+							otherSpeciesIdentifier = s.substring(s.indexOf('=') + 1);
 							done = true;
 						}
 						i++;
 					}
 					// Now, set up the gene families map. This will be used to create permutations of gene mappings (from $SPECIES -> HUMAN).
-					if (line.startsWith("HUMAN"))
+					if (line.startsWith(HUMAN))
 					{
 						Set<String> genes ;
 						if (humanGeneFamilies.containsKey(geneFamily))
@@ -149,7 +154,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 
 					if (otherSpeciesIdentifier == null || humanIdentifier == null)
 					{
-						System.err.println("Error, one or more identifiers could not be mapped to UniProt!");
+						logger.error("Error, one or more identifiers could not be mapped to UniProt!");
 					}
 					else
 					{
@@ -170,16 +175,16 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				line = br.readLine();
 			}
 		}
-		System.out.println("Number of keys in mapping: " + otherSpeciesMappedToHuman.size());
-		System.out.println("Number of values in mapping: " + otherSpeciesMappedToHuman.values().stream().map( set -> set.size()).reduce( 0, (t , u) -> {return t + u;} ));
+		logger.info("Number of keys in mapping: " + otherSpeciesMappedToHuman.size());
+		logger.info("Number of values in mapping: " + otherSpeciesMappedToHuman.values().stream().map( set -> set.size()).reduce( 0, (t , u) -> {return t + u;} ));
 
-		System.out.println("Number of gene families (human): " + humanGeneFamilies.size());
-		System.out.println("Number of gene families (other species): " + otherSpeciesGeneFamilies.size());
+		logger.info("Number of gene families (human): " + humanGeneFamilies.size());
+		logger.info("Number of gene families (other species): " + otherSpeciesGeneFamilies.size());
 
 		Set<String> commonFamilies = otherSpeciesGeneFamilies.keySet().parallelStream().filter(fam -> humanGeneFamilies.containsKey(fam)).collect(Collectors.toSet());
 
 		int extraMapped = 0;
-		System.out.println("Number of common gene families: " + commonFamilies.size());
+		logger.info("Number of common gene families: " + commonFamilies.size());
 		// TODO: create permutations across gene families...
 		for (String commonFamily : commonFamilies)
 		{
@@ -199,9 +204,9 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				}
 			}
 		}
-		System.out.println(extraMapped + " extra mappings were created, based on common gene families.");
-		System.out.println("Number of keys in mapping: " + otherSpeciesMappedToHuman.size());
-		System.out.println("Number of values in mapping: " + otherSpeciesMappedToHuman.values().stream().map( set -> set.size()).reduce( 0, (t , u) -> {return t + u;} ));
+		logger.info(extraMapped + " extra mappings were created, based on common gene families.");
+		logger.info("Number of keys in mapping: " + otherSpeciesMappedToHuman.size());
+		logger.info("Number of values in mapping: " + otherSpeciesMappedToHuman.values().stream().map( set -> set.size()).reduce( 0, (t , u) -> {return t + u;} ));
 
 		// Now we need to process StringDB files.
 		int experimentsAndDBScore = 0;
@@ -217,7 +222,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				FileWriter writer = new FileWriter(ppisWithExperimentsScoreFile);)
 		{
 			List<CSVRecord> records = parser.getRecords();
-			System.out.println(records.size() + " records will be parsed.");
+			logger.info(records.size() + " records will be parsed.");
 			for (CSVRecord  record : records)
 			{
 				int experiments = Integer.parseInt(record.get("experiments"));
@@ -246,7 +251,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				}
 			}
 		}
-		System.out.println(interactionsWithExperiments.size() + " interactions had experiments. " /*+ experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0 AND mapped to HUMAN."*/);
+		logger.info(interactionsWithExperiments.size() + " interactions had experiments. " /*+ experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0 AND mapped to HUMAN."*/);
 
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = mapToUniProtAccessions(stringDBSpeciesCode, interactionsWithExperiments, UniprotDB.UniprotGeneName);
 		// Before mapping from StringDB to UniProt Accession, prepend the species code to the identifier.
@@ -255,8 +260,8 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 
 		//re-assign, using the mapped values.
 //		interactionsWithExperiments = mappedUniProtIdentifiers.keySet().stream().map(k -> putProteinsInOrder(k, mappedUniProtIdentifiers.get(k))).collect(Collectors.toSet());
-		System.out.println("number of gene names (from interactions with experiments > 0) that mapped to accessions: " + uniProtGeneNameToAccessionMapping.size());
-		System.out.println("number of StringDB identifiers (from interactions with experiments > 0) that mapped to accessions: " + uniProtStringDBsToAccessionMapping.size());
+		logger.info("number of gene names (from interactions with experiments > 0) that mapped to accessions: " + uniProtGeneNameToAccessionMapping.size());
+		logger.info("number of StringDB identifiers (from interactions with experiments > 0) that mapped to accessions: " + uniProtStringDBsToAccessionMapping.size());
 //		int unMappedCount = 0, mappedCount = 0;
 //		List<String> interactors = new ArrayList<>();
 //		Map<String, String> ensembl2UniprotMappings = new HashMap<>();
@@ -370,68 +375,68 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 							// DEBUG: let's get some REASONS!
 							else
 							{
-								System.out.println("PPI ("+putProteinsInOrder(protein1, protein2)+") could not be fully mapped because: ");
+								logger.info("PPI ("+putProteinsInOrder(protein1, protein2)+") could not be fully mapped because: ");
 								if (!uniProtGeneNameToAccessionMapping.containsKey(protein1))
 								{
-									System.out.println("  No gene-to-accession mapping for " + protein1);
+									logger.info("  No gene-to-accession mapping for " + protein1);
 									unmappedIdentifiers.add(protein1);
 								}
 								if (!uniProtGeneNameToAccessionMapping.containsKey(protein2))
 								{
-									System.out.println("  No gene-to-accession mapping for " + protein2);
+									logger.info("  No gene-to-accession mapping for " + protein2);
 									unmappedIdentifiers.add(protein2);
 								}
 								try
 								{
 									if (!uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein)))
 									{
-										System.out.println("  " + protein1 + " could not map to Human.");
+										logger.info("  " + protein1 + " could not map to Human.");
 										noHumanMappedIdentifiers.add(protein1);
 									}
 								}
 								catch (NullPointerException e)
 								{
 									npeIdentifiers.add(protein1);
-									System.out.println("  NPE caught while trying to check for a mapping from " + protein1 + " to Human");
+									logger.info("  NPE caught while trying to check for a mapping from " + protein1 + " to Human");
 								}
 								try
 								{
 									if (!uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein)))
 									{
-										System.out.println("  " + protein2 + " could not map to Human.");
+										logger.info("  " + protein2 + " could not map to Human.");
 										noHumanMappedIdentifiers.add(protein2);
 									}
 								}
 								catch (NullPointerException e)
 								{
 									npeIdentifiers.add(protein2);
-									System.out.println("  NPE caught while trying to check for a mapping from " + protein2 + " to Human");
+									logger.info("  NPE caught while trying to check for a mapping from " + protein2 + " to Human");
 								}
 							}
 						}
 					}
 				}
-				System.out.println(numBinding + " PPIs were binding.");
-				System.out.println(numBindingAndExperimentsGt0 + " PPIs had experiments > 0 AND were binding.");
-				System.out.println(numPPIsInMapping + " PPIs were in the mapping");
-				System.out.println(selfInteractions + " self-interactions were omitted from output.");
+				logger.info(numBinding + " PPIs were binding.");
+				logger.info(numBindingAndExperimentsGt0 + " PPIs had experiments > 0 AND were binding.");
+				logger.info(numPPIsInMapping + " PPIs were in the mapping");
+				logger.info(selfInteractions + " self-interactions were omitted from output.");
 				for (String line : outLines.stream().sorted().collect(Collectors.toList()))
 				{
 					writer.write(line);
 				}
-				System.out.println("Number of \"binding\" StringDB interactions (PPIs) that mapped between species: "+outLines.size() + "; out of a total of "+parser.getRecordNumber() + " records.");
-				System.out.println("Number of proteins that were only mapped as StringDB-to-UniProt Accession: " + numMappingsInStringDBOnly);
-				System.out.println("Number of proteins that could not map to UniProt accessions: " + unmappedIdentifiers.size());
+				logger.info("Number of \"binding\" StringDB interactions (PPIs) that mapped between species: "+outLines.size() + "; out of a total of "+parser.getRecordNumber() + " records.");
+				logger.info("Number of proteins that were only mapped as StringDB-to-UniProt Accession: " + numMappingsInStringDBOnly);
+				logger.info("Number of proteins that could not map to UniProt accessions: " + unmappedIdentifiers.size());
 				for (String unmapped : unmappedIdentifiers)
 				{
 					unmappedWriter.write(unmapped + "\n");
 				}
-				System.out.println("Number of proteins that could not map to human: " + noHumanMappedIdentifiers.size());
-				System.out.println("Number of proteins identifies that caused NPEs: " + npeIdentifiers.size());
+				logger.info("Number of proteins that could not map to human: " + noHumanMappedIdentifiers.size());
+				logger.info("Number of proteins identifies that caused NPEs: " + npeIdentifiers.size());
 			}
 
 
-//			System.out.println("StrignDB Interactions that were mapped: "+mappedCount+"; Unmapped interactors: "+unmappedInteractorsCount);
+//			logger.info("StrignDB Interactions that were mapped: "+mappedCount+"; Unmapped interactors: "+unmappedInteractorsCount);
 		}
 	}
 
@@ -451,10 +456,10 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 
 		try(FileWriter writer = new FileWriter(stringDBSpeciesCode + "_mappedToUniProt.tsv"))
 		{
-			for (String srcID : uniProtGeneNameToAccessionMapping.keySet())
+			for (Entry<String, Set<String>> entry : uniProtGeneNameToAccessionMapping.entrySet())
 			{
-				String mapping = String.join(",", uniProtGeneNameToAccessionMapping.get(srcID).stream().sorted().collect(Collectors.toList()));
-				writer.write(srcID + "\t" + mapping+"\n");
+				String mapping = String.join(",", entry.getValue().stream().sorted().collect(Collectors.toList()));
+				writer.write(entry.getKey() + "\t" + mapping+"\n");
 			}
 		}
 		return uniProtGeneNameToAccessionMapping;
@@ -489,7 +494,7 @@ private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 				retriever.setDataInputStream(new BufferedInputStream(new ByteArrayInputStream(inputString.getBytes())));
 
 				List<String> dataLines = retriever.downloadAndReturnDataLines();
-				System.out.println(dataLines.size() + " " + targetDB.toString() + "-to-Uniprot mappings retrieved.");
+				logger.info(dataLines.size() + " " + targetDB.toString() + "-to-Uniprot mappings retrieved.");
 				// Just in case...
 				if (dataLines!=null)
 				{
