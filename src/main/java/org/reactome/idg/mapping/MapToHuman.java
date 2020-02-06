@@ -27,7 +27,7 @@ import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class MapToHuman
 {
-	private static URI UNIPROT_MAPPING_URI = null;
+	private static URI uniprotMappingServiceURI = null;
 	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
 	private static final String HUMAN = "HUMAN";
 	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
@@ -38,7 +38,7 @@ public class MapToHuman
 	{
 		try
 		{
-			UNIPROT_MAPPING_URI = new URI("https://www.uniprot.org/uploadlists/");
+			uniprotMappingServiceURI = new URI("https://www.uniprot.org/uploadlists/");
 		}
 		catch (URISyntaxException e)
 		{
@@ -194,11 +194,11 @@ public class MapToHuman
 		logger.info("Number of gene families (human): {}", humanGeneFamilies.size());
 		logger.info("Number of gene families (other species): {}", otherSpeciesGeneFamilies.size());
 
-		Set<String> commonFamilies = otherSpeciesGeneFamilies.keySet().parallelStream().filter(fam -> humanGeneFamilies.containsKey(fam)).collect(Collectors.toSet());
+		Set<String> commonFamilies = otherSpeciesGeneFamilies.keySet().parallelStream().filter(humanGeneFamilies::containsKey).collect(Collectors.toSet());
 
 		int extraMapped = 0;
 		logger.info("Number of common gene families: {}", commonFamilies.size());
-		// TODO: create permutations across gene families...
+		// create permutations across gene families...
 		for (String commonFamily : commonFamilies)
 		{
 			Set<String> humanGenes = humanGeneFamilies.get(commonFamily);
@@ -264,7 +264,7 @@ public class MapToHuman
 				}
 			}
 		}
-		logger.info(interactionsWithExperiments.size() + " interactions had experiments. " /*+ experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0 AND mapped to HUMAN."*/);
+		logger.info("{} interactions had experiments. " /*+ experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0 AND mapped to HUMAN."*/, interactionsWithExperiments.size() );
 
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = mapToUniProtAccessions(stringDBSpeciesCode, interactionsWithExperiments, UniprotDB.UniprotGeneName);
 		// Before mapping from StringDB to UniProt Accession, prepend the species code to the identifier.
@@ -281,6 +281,7 @@ public class MapToHuman
 //		Set<String> identifiersToMapToUniprot = new HashSet<>();
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
 				FileWriter writer = new FileWriter(speciesName + "_" + PPIS_MAPPED_TO_HUMAN_FILE);
+				FileWriter mappingFailureReasons = new FileWriter(speciesName + "_mapping_errors_details.log");
 				FileWriter unmappedWriter = new FileWriter("unmapped_from_stringdb.txt");
 				FileWriter noMappingToHumanWriter = new FileWriter("no_mapping_to_human.txt"))
 		{
@@ -389,43 +390,45 @@ public class MapToHuman
 							// DEBUG: let's get some REASONS!
 							else
 							{
-								logger.info("PPI ({}) could not be fully mapped because: ", putProteinsInOrder(protein1, protein2));
+								mappingFailureReasons.write("PPI ("+putProteinsInOrder(protein1, protein2)+") could not be fully mapped because:" );
 								if (!uniProtGeneNameToAccessionMapping.containsKey(protein1))
 								{
-									logger.info("  No gene-to-accession mapping for {}", protein1);
+									mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein1);
 									unmappedIdentifiers.add(protein1);
 								}
 								if (!uniProtGeneNameToAccessionMapping.containsKey(protein2))
 								{
-									logger.info("  No gene-to-accession mapping for {}", protein2);
+									mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein2);
 									unmappedIdentifiers.add(protein2);
 								}
+								
 								try
 								{
 									if (!uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
 									{
-										logger.info("  {} could not map to Human.", protein1 );
+										mappingFailureReasons.write("\t " + protein1 + " could not map to Human.");
 										noHumanMappedIdentifiers.add(protein1);
 									}
 								}
 								catch (NullPointerException e)
 								{
 									npeIdentifiers.add(protein1);
-									logger.info("  NPE caught while trying to check for a mapping from {} to Human",  protein1);
+									mappingFailureReasons.write("\t NPE caught while trying to check for a mapping from " + protein1 + " to Human");
 								}
 								try
 								{
 									if (!uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
 									{
-										logger.info("  {} could not map to Human.", protein2 );
+										mappingFailureReasons.write("\t " + protein2 + " could not map to Human.");
 										noHumanMappedIdentifiers.add(protein2);
 									}
 								}
 								catch (NullPointerException e)
 								{
 									npeIdentifiers.add(protein2);
-									logger.info("  NPE caught while trying to check for a mapping from {} to Human",  protein2);
+									mappingFailureReasons.write("\t NPE caught while trying to check for a mapping from " + protein2 + " to Human");
 								}
+								mappingFailureReasons.write('\n');
 							}
 						}
 					}
@@ -508,7 +511,7 @@ public class MapToHuman
 				UniprotFileRetriever retriever = new UniprotFileRetriever();
 				retriever.setMapToDbEnum(UniprotDB.UniProtAcc);
 				retriever.setMapFromDbEnum(targetDB);
-				retriever.setUri(UNIPROT_MAPPING_URI);
+				retriever.setUri(uniprotMappingServiceURI);
 				retriever.setDataInputStream(new BufferedInputStream(new ByteArrayInputStream(inputString.getBytes())));
 
 				List<String> dataLines = retriever.downloadAndReturnDataLines();
