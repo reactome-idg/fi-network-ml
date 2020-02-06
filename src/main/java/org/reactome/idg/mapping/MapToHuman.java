@@ -485,7 +485,7 @@ public class MapToHuman
 		}
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = getMappingsFromUniProt(identifiersToMapToUniprot, mappingSource);
 
-		try(FileWriter writer = new FileWriter(this.outputPath + stringDBSpeciesCode + "_mappedToUniProt.tsv"))
+		try(FileWriter writer = new FileWriter(this.outputPath + stringDBSpeciesCode + "_"+mappingSource+"_mappedToUniProt.tsv"))
 		{
 			for (Entry<String, Set<String>> entry : uniProtGeneNameToAccessionMapping.entrySet())
 			{
