@@ -504,7 +504,7 @@ public class MapToHuman
 				: p2 + "\t" + p1;
 	}
 
-	protected static Map<String, Set<String>> getMappingsFromUniProt(Set<String> identifiersToMapToUniprot, UniprotDB targetDB) throws URISyntaxException
+	protected static Map<String, Set<String>> getMappingsFromUniProt(Set<String> identifiersToMapToUniprot, UniprotDB targetDB)
 	{
 		Map<String, Set<String>> identifierToUniprotMap = new HashMap<>();
 		int i = 0, j = 0;
@@ -525,7 +525,7 @@ public class MapToHuman
 				retriever.setDataInputStream(new BufferedInputStream(new ByteArrayInputStream(inputString.getBytes())));
 
 				List<String> dataLines = retriever.downloadAndReturnDataLines();
-				logger.info(dataLines.size() + " " + targetDB.toString() + "-to-Uniprot mappings retrieved.");
+				logger.info("{} {}-to-Uniprot mappings retrieved.", dataLines.size(), targetDB.toString());
 				// Just in case...
 				if (dataLines!=null)
 				{
