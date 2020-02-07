@@ -32,11 +32,12 @@ public class MapToHuman
 	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
 	private static final String HUMAN = "HUMAN";
 	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
-	//	private static final String EMPTY_TOKEN = "<EMTPY>";
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
 
 	private String outputPath = "";
 	private static URI uniprotMappingServiceURI = null;
+
+	private String stringDBSpeciesCode;
 
 	public MapToHuman() throws URISyntaxException
 	{
@@ -50,25 +51,23 @@ public class MapToHuman
 			throw e;
 		}
 	}
-	
+
 	public static void main(String[] args) throws IOException, URISyntaxException
 	{
 		MapToHuman mapper = new MapToHuman();
-		mapper.mapOtherSpeciesToHuman("YEAST", "4932", true);
-//		mapOtherSpeciesToHuman("SCHPO", "4896", true);
+		mapper.stringDBSpeciesCode = "4932";
+		mapper.mapOtherSpeciesToHuman("YEAST", true);
+		mapper.stringDBSpeciesCode = "4896";
+//		mapper.mapOtherSpeciesToHuman("SCHPO", true);
+
 	}
-	
-	private void mapOtherSpeciesToHuman(String speciesName, String stringDBSpeciesCode, boolean allowBidirectionalMappings) throws FileNotFoundException, IOException, URISyntaxException
+
+	private void mapOtherSpeciesToHuman(String speciesName, boolean allowBidirectionalMappings) throws FileNotFoundException, IOException, URISyntaxException
 	{
 		this.outputPath = "output/"+speciesName+"_results/";
 		Files.createDirectories(Paths.get(this.outputPath));
-//		boolean allowBidirectionalMappings = false;
 		// Mapping of UniProt identifiers from the Other species to Human, according to PANTHER.
 		Map<String, Set<String>> otherSpeciesMappedToHuman = new HashMap<>();
-		// String species name
-//		String speciesName = "SCHPO";//"YEAST"; //
-		// String species code - used in StringDB file
-//		String stringDBSpeciesCode = "4896";//"4932"; //
 		// Path to input StringDB file.
 		String stringDBFile;
 		// Path to input Panther file. Obtain the file here: ftp://ftp.pantherdb.org/ortholog/current_release/Orthologs_HCOP.tar.gz
@@ -85,11 +84,7 @@ public class MapToHuman
 		try(BufferedReader br = new BufferedReader(new FileReader(pantherFile)))
 		{
 			String line = br.readLine();
-//			lineCount++;
-//			if (lineCount % 100000 == 0)
-//			{
-//				logger.info(lineCount + " lines read from PANTHER Orthologs.");
-//			}
+
 			while (line != null)
 			{
 				String[] parts = line.split("\\t");
@@ -116,33 +111,8 @@ public class MapToHuman
 						otherSpeciesParts = parts[0].split("\\|");
 					}
 					// Now... get the identifier values for Human and the other species.
-					String s = "";
-					boolean done = false;
-					int i = 0;
-					String humanIdentifier = null;
-					String otherSpeciesIdentifier = null;
-					while(!done && i < humanParts.length)
-					{
-						s = humanParts[i];
-						if (s.startsWith("UniProt"))
-						{
-							humanIdentifier = s.substring(s.indexOf('=') + 1);
-							done = true;
-						}
-						i++;
-					}
-					done = false;
-					i = 0;
-					while(!done && i < otherSpeciesParts.length)
-					{
-						s = otherSpeciesParts[i];
-						if (s.startsWith("UniProt"))
-						{
-							otherSpeciesIdentifier = s.substring(s.indexOf('=') + 1);
-							done = true;
-						}
-						i++;
-					}
+					String humanIdentifier = extractUniprotIdentifier(humanParts);
+					String otherSpeciesIdentifier = extractUniprotIdentifier(otherSpeciesParts);
 					// Now, set up the gene families map. This will be used to create permutations of gene mappings (from $SPECIES -> HUMAN).
 					if (line.startsWith(HUMAN))
 					{
@@ -190,7 +160,7 @@ public class MapToHuman
 						}
 						identifiers.add(humanIdentifier);
 						otherSpeciesMappedToHuman.put(otherSpeciesIdentifier, identifiers);
-						otherSpeciesMappedToHuman.computeIfAbsent(otherSpeciesIdentifier, identifier -> { Set<String> set = new HashSet<>(); set.add(identifier); return set; }  );
+//						otherSpeciesMappedToHuman.computeIfAbsent(otherSpeciesIdentifier, identifier -> { Set<String> set = new HashSet<>(); set.add(identifier); return set; }  );
 					}
 				}
 				line = br.readLine();
@@ -198,42 +168,30 @@ public class MapToHuman
 		}
 		logger.info("Number of keys in mapping: {}", otherSpeciesMappedToHuman.size());
 		logger.info("Number of values in mapping: {}", otherSpeciesMappedToHuman.values().stream().map(Set::size).reduce( 0, (t , u) -> t + u ));
-
 		logger.info("Number of gene families (human): {}", humanGeneFamilies.size());
 		logger.info("Number of gene families (other species): {}", otherSpeciesGeneFamilies.size());
 
-		Set<String> commonFamilies = otherSpeciesGeneFamilies.keySet().parallelStream().filter(humanGeneFamilies::containsKey).collect(Collectors.toSet());
-
-		int extraMapped = 0;
-		logger.info("Number of common gene families: {}", commonFamilies.size());
-		// create permutations across gene families...
-		for (String commonFamily : commonFamilies)
+		Map<String, Set<String>> extraMappings = generateMappingsFromCommonGeneFamilies(otherSpeciesMappedToHuman, humanGeneFamilies, otherSpeciesGeneFamilies);
+		for (Entry<String, Set<String>> extraMapping : extraMappings.entrySet())
 		{
-			Set<String> humanGenes = humanGeneFamilies.get(commonFamily);
-			Set<String> nonHumanGenes = otherSpeciesGeneFamilies.get(commonFamily);
-			// Now create a mapping for everything in nonHumanGenes to humanGenes
-			for (String nonHumanGene : nonHumanGenes)
+			if (otherSpeciesMappedToHuman.containsKey(extraMapping.getKey()))
 			{
-				for (String humanGene : humanGenes)
-				{
-					Set<String> mapped = otherSpeciesMappedToHuman.get(nonHumanGene);
-					if(mapped.add(humanGene))
-					{
-						extraMapped++;
-						otherSpeciesMappedToHuman.put(nonHumanGene, mapped);
-					}
-				}
+				otherSpeciesMappedToHuman.get(extraMapping.getKey()).addAll(extraMapping.getValue());
+			}
+			else
+			{
+				otherSpeciesMappedToHuman.put(extraMapping.getKey(), extraMapping.getValue());
 			}
 		}
-		logger.info("{} extra mappings were created, based on common gene families.", extraMapped);
+
 		logger.info("Number of keys in mapping: {}", otherSpeciesMappedToHuman.size());
 		logger.info("Number of values in mapping: {}", otherSpeciesMappedToHuman.values().stream().map(Set::size).reduce( 0, (t , u) -> t + u ));
 
 		// Now we need to process StringDB files.
 		int experimentsAndDBScore = 0;
-		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.actions.v11.0.txt";
-		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
-		String ppisWithExperimentsScoreFile = outputPath + stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
+		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.actions.v11.0.txt";
+		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
+		String ppisWithExperimentsScoreFile = outputPath + this.stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
 		Set<String> interactionsWithExperiments = new HashSet<>();
 		// First we have to filter for interactions in protein.links.full where experiment > 0
 		try (FileReader reader = new FileReader(stringDBProteinLinksFile);
@@ -250,23 +208,15 @@ public class MapToHuman
 				int dbScore = Integer.parseInt(record.get("database"));
 				if (experiments > 0 /*|| dbScore > 0*/)
 				{
-					String protein1 = record.get("protein1").replace(stringDBSpeciesCode+".","");
-					String protein2 = record.get("protein2").replace(stringDBSpeciesCode+".","");
-
+					String protein1 = record.get("protein1").replace(this.stringDBSpeciesCode+".","");
+					String protein2 = record.get("protein2").replace(this.stringDBSpeciesCode+".","");
 					// For StringDB S. Pombe, some additional cleanup is needed...
-					if (stringDBSpeciesCode.equals("4896"))
+					if (this.stringDBSpeciesCode.equals("4896"))
 					{
-						if (protein1.endsWith(".1"))
-						{
-							protein1 = protein1.substring(0,protein1.length()-2);
-						}
-
-						if (protein2.endsWith(".1"))
-						{
-							protein2 = protein2.substring(0,protein2.length()-2);
-						}
+						String[] fixedProteins = MapToHuman.fixSPombeProteins(protein1, protein2);
+						protein1 = fixedProteins[0];
+						protein2 = fixedProteins[1];
 					}
-
 					interactionsWithExperiments.add(putProteinsInOrder(protein1, protein2));
 					writer.write(protein1 + "\t" + protein2+"\n");
 				}
@@ -274,21 +224,24 @@ public class MapToHuman
 		}
 		logger.info("{} interactions had experiments. " /*+ experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0 AND mapped to HUMAN."*/, interactionsWithExperiments.size() );
 
-		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = mapToUniProtAccessions(stringDBSpeciesCode, interactionsWithExperiments, UniprotDB.UniprotGeneName);
+		// Before we make mapping calls to UniProt, let's see what we can get out of the SGD file.
+		MAPPING_TYPE from = MAPPING_TYPE.UNIPROT_GENE_NAME;
+		MAPPING_TYPE to = MAPPING_TYPE.UNIPROT_ACCESSION;
+		Map<String, Set<String>> mappingsFromSGDFile = getSGDMappings(from, to);
+
+		logger.info("Mappings from SGD ({} -> {}) have {} keys", from, to, mappingsFromSGDFile.size());
+
+		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = mapToUniProtAccessions(this.stringDBSpeciesCode, mappingsFromSGDFile, interactionsWithExperiments, UniprotDB.UniprotGeneName);
 		// Before mapping from StringDB to UniProt Accession, prepend the species code to the identifier.
-		Map<String, Set<String>> uniProtStringDBsToAccessionMapping = mapToUniProtAccessions(stringDBSpeciesCode, interactionsWithExperiments.parallelStream().map(identifier -> stringDBSpeciesCode + "."  + identifier).collect(Collectors.toSet()), UniprotDB.STRINGDB);
+		Map<String, Set<String>> uniProtStringDBsToAccessionMapping = mapToUniProtAccessions(this.stringDBSpeciesCode, mappingsFromSGDFile, interactionsWithExperiments.parallelStream().map(identifier -> this.stringDBSpeciesCode + "."  + identifier).collect(Collectors.toSet()), UniprotDB.STRINGDB);
+
 
 
 		//re-assign, using the mapped values.
 //		interactionsWithExperiments = mappedUniProtIdentifiers.keySet().stream().map(k -> putProteinsInOrder(k, mappedUniProtIdentifiers.get(k))).collect(Collectors.toSet());
 		logger.info("number of gene names (from interactions with experiments > 0) that mapped to accessions: {}", uniProtGeneNameToAccessionMapping.size());
 		logger.info("number of StringDB identifiers (from interactions with experiments > 0) that mapped to accessions: {}", uniProtStringDBsToAccessionMapping.size());
-//		int unMappedCount = 0, mappedCount = 0;
-//		List<String> interactors = new ArrayList<>();
-//		Map<String, String> ensembl2UniprotMappings = new HashMap<>();
-//		Set<String> identifiersToMapToUniprot = new HashSet<>();
-		
-		
+
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
 				FileWriter writer = new FileWriter(outputPath + speciesName + "_" + PPIS_MAPPED_TO_HUMAN_FILE);
 				FileWriter mappingFailureReasons = new FileWriter(outputPath + speciesName + "_mapping_errors_details.log");
@@ -318,19 +271,13 @@ public class MapToHuman
 					if (record.get("mode").equals("binding"))
 					{
 						numBinding++;
-						String protein1 = record.get("item_id_a").replace(stringDBSpeciesCode + ".", "");
-						String protein2 = record.get("item_id_b").replace(stringDBSpeciesCode + ".", "");
-						if (stringDBSpeciesCode.equals("4896"))
+						String protein1 = record.get("item_id_a").replace(this.stringDBSpeciesCode + ".", "");
+						String protein2 = record.get("item_id_b").replace(this.stringDBSpeciesCode + ".", "");
+						if (this.stringDBSpeciesCode.equals("4896"))
 						{
-							if (protein1.endsWith(".1"))
-							{
-								protein1 = protein1.substring(0,protein1.length()-2);
-							}
-
-							if (protein2.endsWith(".1"))
-							{
-								protein2 = protein2.substring(0,protein2.length()-2);
-							}
+							String[] fixedProteins = MapToHuman.fixSPombeProteins(protein1, protein2);
+							protein1 = fixedProteins[0];
+							protein2 = fixedProteins[1];
 						}
 						// Check if this PPI has experiment score > 0 (it will be in interactionsWithExperiments)
 						if (interactionsWithExperiments.contains(putProteinsInOrder(protein1, protein2)))
@@ -342,18 +289,23 @@ public class MapToHuman
 																		&& uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
 
 
-							boolean protein1MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(stringDBSpeciesCode + "." + protein1)
-																		&& uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein1).stream()
+							boolean protein1MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein1)
+																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein1).stream()
 																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
 
 
-							boolean protein2MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(stringDBSpeciesCode + "." + protein2)
-																		&& uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein2).stream()
+							boolean protein2MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein2)
+																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein2).stream()
 																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
 
+							boolean protein1MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein1)
+																&& mappingsFromSGDFile.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
 
-							boolean proteinsAreInMapping = (protein1MapsGeneNameToAccession || protein1MapsStringDBToAccession)
-															&& (protein2MapsGeneNameToAccession || protein2MapsStringDBToAccession);
+							boolean protein2MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein2)
+																&& mappingsFromSGDFile.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+
+							boolean proteinsAreInMapping = (protein1MapsGeneNameToAccession || protein1MapsStringDBToAccession || protein1MapsViaSGDMApping)
+															&& (protein2MapsGeneNameToAccession || protein2MapsStringDBToAccession || protein2MapsViaSGDMApping);
 
 							if ((protein1MapsStringDBToAccession && !protein1MapsGeneNameToAccession)
 								|| (protein2MapsStringDBToAccession && !protein2MapsGeneNameToAccession))
@@ -367,15 +319,12 @@ public class MapToHuman
 							{
 								numPPIsInMapping++;
 								// Ok we need to get the accession that is also in the PANTHER species mapping...
-								String protein1Accession = protein1MapsGeneNameToAccession
-															? uniProtGeneNameToAccessionMapping.get(protein1).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
-															: uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein1)
-																								.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(stringDBSpeciesCode + ".", ""))).findFirst().get();
-
-								String protein2Accession = protein2MapsGeneNameToAccession
-															? uniProtGeneNameToAccessionMapping.get(protein2).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
-															: uniProtStringDBsToAccessionMapping.get(stringDBSpeciesCode + "." + protein2)
-																								.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(stringDBSpeciesCode + ".", ""))).findFirst().get();
+								String protein1Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, uniProtGeneNameToAccessionMapping, uniProtStringDBsToAccessionMapping, mappingsFromSGDFile, protein1, protein1MapsGeneNameToAccession);
+								String protein2Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, uniProtGeneNameToAccessionMapping, uniProtStringDBsToAccessionMapping, mappingsFromSGDFile, protein2, protein2MapsGeneNameToAccession);
+//								String protein2Accession = protein2MapsGeneNameToAccession
+//															? uniProtGeneNameToAccessionMapping.get(protein2).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
+//															: uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein2)
+//																								.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
 
 								// Self-interactions occur when two of the non-human proteins both map to the exact same human protein (and they do not map to any other proteins).
 								// These are ignored in the output. When two non-human proteins map to multiple human proteins where some of them are the same,
@@ -401,43 +350,8 @@ public class MapToHuman
 							else
 							{
 								mappingFailureReasons.write("PPI ("+putProteinsInOrder(protein1, protein2)+") could not be fully mapped because:" );
-								if (!uniProtGeneNameToAccessionMapping.containsKey(protein1))
-								{
-									mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein1);
-									unmappedIdentifiers.add(protein1);
-								}
-								if (!uniProtGeneNameToAccessionMapping.containsKey(protein2))
-								{
-									mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein2);
-									unmappedIdentifiers.add(protein2);
-								}
-								
-								try
-								{
-									if (!uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
-									{
-										mappingFailureReasons.write("\t " + protein1 + " could not map to Human.");
-										noHumanMappedIdentifiers.add(protein1);
-									}
-								}
-								catch (NullPointerException e)
-								{
-									npeIdentifiers.add(protein1);
-									mappingFailureReasons.write("\t NPE caught while trying to check for a mapping from " + protein1 + " to Human");
-								}
-								try
-								{
-									if (!uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
-									{
-										mappingFailureReasons.write("\t " + protein2 + " could not map to Human.");
-										noHumanMappedIdentifiers.add(protein2);
-									}
-								}
-								catch (NullPointerException e)
-								{
-									npeIdentifiers.add(protein2);
-									mappingFailureReasons.write("\t NPE caught while trying to check for a mapping from " + protein2 + " to Human");
-								}
+								logErrorsWithProtein(uniProtGeneNameToAccessionMapping, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein1);
+								logErrorsWithProtein(uniProtGeneNameToAccessionMapping, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein2);
 								mappingFailureReasons.write('\n');
 							}
 						}
@@ -471,18 +385,130 @@ public class MapToHuman
 		}
 	}
 
-	private Map<String, Set<String>> mapToUniProtAccessions(String stringDBSpeciesCode, Set<String> interactionsWithExperiments, UniprotDB mappingSource) throws URISyntaxException, IOException
+	private void logErrorsWithProtein(Map<String, Set<String>> uniProtGeneNameToAccessionMapping, FileWriter mappingFailureReasons, Set<String> unmappedIdentifiers, Set<String> noHumanMappedIdentifiers, Set<String> npeIdentifiers, Map<String, Set<String>> otherSpeciesMappedToHuman, String protein1) throws IOException
 	{
+		if (!uniProtGeneNameToAccessionMapping.containsKey(protein1))
+		{
+			mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein1);
+			unmappedIdentifiers.add(protein1);
+		}
+		try
+		{
+			if (!uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
+			{
+				mappingFailureReasons.write("\t " + protein1 + " could not map to Human.");
+				noHumanMappedIdentifiers.add(protein1);
+			}
+		}
+		catch (NullPointerException e)
+		{
+			npeIdentifiers.add(protein1);
+			mappingFailureReasons.write("\t NPE caught while trying to check for a mapping from " + protein1 + " to Human");
+		}
+	}
+
+	private String getUniProtAccessionForProtein(Map<String, Set<String>> otherSpeciesMappedToHuman, Map<String, Set<String>> uniProtGeneNameToAccessionMapping, Map<String, Set<String>> uniProtStringDBsToAccessionMapping, Map<String, Set<String>> mappingsFromSGDFile, String protein, boolean proteinMapsGeneNameToAccession)
+	{
+		// well, this code is rather ugly...
+		String proteinAccession = null;
+		if (proteinMapsGeneNameToAccession)
+		{
+			proteinAccession = uniProtGeneNameToAccessionMapping.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get();
+		}
+		else if (mappingsFromSGDFile.containsKey(protein))
+		{
+			proteinAccession = mappingsFromSGDFile.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get();
+		}
+		else
+		{
+			proteinAccession = uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
+		}
+
+//		String proteinAccession = proteinMapsGeneNameToAccession
+//									? uniProtGeneNameToAccessionMapping.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
+//									: uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein)
+//																		.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
+		return proteinAccession;
+	}
+
+	private Map<String, Set<String>> generateMappingsFromCommonGeneFamilies(Map<String, Set<String>> otherSpeciesMappedToHuman, Map<String, Set<String>> humanGeneFamilies, Map<String, Set<String>> otherSpeciesGeneFamilies)
+	{
+		Set<String> commonFamilies = otherSpeciesGeneFamilies.keySet().parallelStream().filter(humanGeneFamilies::containsKey).collect(Collectors.toSet());
+		Map<String, Set<String>> extraMappings = new HashMap<>();
+		int extraMapped = 0;
+		logger.info("Number of common gene families: {}", commonFamilies.size());
+		// create permutations across gene families...
+		for (String commonFamily : commonFamilies)
+		{
+			Set<String> humanGenes = humanGeneFamilies.get(commonFamily);
+			Set<String> nonHumanGenes = otherSpeciesGeneFamilies.get(commonFamily);
+			// Now create a mapping for everything in nonHumanGenes to humanGenes
+			for (String nonHumanGene : nonHumanGenes)
+			{
+				for (String humanGene : humanGenes)
+				{
+					Set<String> mapped = otherSpeciesMappedToHuman.get(nonHumanGene);
+					if(mapped.add(humanGene))
+					{
+						extraMapped++;
+						extraMappings.put(nonHumanGene, mapped);
+					}
+				}
+			}
+		}
+		logger.info("{} extra mappings were created, based on common gene families.", extraMapped);
+		return extraMappings;
+	}
+
+	private String extractUniprotIdentifier(String[] humanParts)
+	{
+		String identifier = null;
+		String s;
+		boolean done = false;
+		int i = 0;
+		while(!done && i < humanParts.length)
+		{
+			s = humanParts[i];
+			if (s.startsWith("UniProt"))
+			{
+				identifier = s.substring(s.indexOf('=') + 1);
+				done = true;
+			}
+			i++;
+		}
+		return identifier;
+	}
+
+	private Map<String, Set<String>> mapToUniProtAccessions(String stringDBSpeciesCode, Map<String, Set<String>> preexistingMappings, Set<String> interactionsWithExperiments, UniprotDB mappingSource) throws IOException
+	{
+		int interactorsAlreadyMapped = 0;
 		// Now map the UniProt Gene Names (from StringDB) to UniProt Accessions
 		Set<String> identifiersToMapToUniprot = new HashSet<>();
 		for (String interactorPair : interactionsWithExperiments)
 		{
+
 			String[] parts = interactorPair.split("\\t");
 			String interactor1 = parts[0];
 			String interactor2 = parts[1];
-			identifiersToMapToUniprot.add(interactor1);
-			identifiersToMapToUniprot.add(interactor2);
+			if (preexistingMappings.containsKey(interactor1))
+			{
+				interactorsAlreadyMapped++;
+			}
+			else
+			{
+				identifiersToMapToUniprot.add(interactor1);
+			}
+
+			if (preexistingMappings.containsKey(interactor2))
+			{
+				interactorsAlreadyMapped++;
+			}
+			else
+			{
+				identifiersToMapToUniprot.add(interactor2);
+			}
 		}
+		logger.info("{} interactors were already found in a pre-existing mapping, so will not be sent to uniprot. {} will be mapped.", interactorsAlreadyMapped, identifiersToMapToUniprot.size());
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = getMappingsFromUniProt(identifiersToMapToUniprot, mappingSource);
 
 		try(FileWriter writer = new FileWriter(this.outputPath + stringDBSpeciesCode + "_"+mappingSource+"_mappedToUniProt.tsv"))
@@ -556,5 +582,78 @@ public class MapToHuman
 		}
 
 		return identifierToUniprotMap;
+	}
+
+	private static String[] fixSPombeProteins(String protein1, String protein2)
+	{
+		String[] proteins = new String[2];
+		if (protein1.endsWith(".1"))
+		{
+			proteins[0] = protein1.substring(0,protein1.length()-2);
+		}
+
+		if (protein2.endsWith(".1"))
+		{
+			proteins[1] = protein2.substring(0,protein2.length()-2);
+		}
+		return proteins;
+	}
+
+	private enum MAPPING_TYPE { UNIPROT_GENE_NAME, SGD, UNIPROT_ACCESSION; }
+
+	private Map<String, Set<String>> getSGDMappings(MAPPING_TYPE from, MAPPING_TYPE to)
+	{
+		final String uniProtName = "UniProtKB";
+		Map<String, Set<String>> sgdMappings = new HashMap<>();
+		// See https://downloads.yeastgenome.org/curation/chromosomal_feature/ to get dbxref.tab
+		// SGD file will have identifier such as Q0140 in the "UniProtKB/Swiss-Prot ID" field.
+		// This can be used to help map identifiers in the StringDB file to UniProt accession numbers.
+		// Q0140 -> P02381 in the SGD file, and this reduces the number of lookups you'll need to do with the UniProt mapping service.
+		// You could also get the SGD ID and do lookups with that.
+		try(BufferedReader reader = Files.newBufferedReader(Paths.get("src", "main", "resources", "data", "dbxref.tab"));)
+		{
+			String line = reader.readLine();
+			while (line != null)
+			{
+				String[] lineParts = line.split("\\t");
+				if (lineParts[1].equals(uniProtName))
+				{
+					String uniprotAccession = lineParts[0];
+					String uniprotSwissprotID = lineParts[3];
+					String sgdID = lineParts[4];
+					String fromValue = null, toValue = null;
+					switch (from)
+					{
+						// This seems to be a good place to use Java's case-expressions - when they are no longer considered a "preview" feature.
+						case UNIPROT_GENE_NAME: fromValue = uniprotSwissprotID; break;
+						case UNIPROT_ACCESSION: fromValue = uniprotAccession; break;
+						case SGD: fromValue = sgdID; break;
+					}
+					switch (to)
+					{
+						case UNIPROT_GENE_NAME: toValue = uniprotSwissprotID; break;
+						case UNIPROT_ACCESSION: toValue = uniprotAccession; break;
+						case SGD: toValue = sgdID; break;
+					}
+					Set<String> existingMappings;
+					if (sgdMappings.containsKey(fromValue))
+					{
+						existingMappings = sgdMappings.get(fromValue);
+					}
+					else
+					{
+						existingMappings = new HashSet<>();
+					}
+					existingMappings.add(toValue);
+					sgdMappings.put(fromValue, existingMappings);
+				}
+				line = reader.readLine();
+			}
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		return sgdMappings;
 	}
 }
