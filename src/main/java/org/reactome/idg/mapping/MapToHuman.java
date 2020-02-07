@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -242,6 +243,25 @@ public class MapToHuman
 		logger.info("number of gene names (from interactions with experiments > 0) that mapped to accessions: {}", uniProtGeneNameToAccessionMapping.size());
 		logger.info("number of StringDB identifiers (from interactions with experiments > 0) that mapped to accessions: {}", uniProtStringDBsToAccessionMapping.size());
 
+		// Merge all the maps.
+		Map<String, Set<String>> globalMap = new HashMap<>();
+		uniProtGeneNameToAccessionMapping.keySet().stream().forEach(k ->
+		{
+			globalMap.merge(k, uniProtGeneNameToAccessionMapping.get(k), (s,t) -> {t.addAll(s); return t;});
+		});
+
+		uniProtStringDBsToAccessionMapping.keySet().stream().forEach(k ->
+		{
+			globalMap.merge(k, uniProtStringDBsToAccessionMapping.get(k), (s,t) -> {t.addAll(s); return t;});
+		});
+
+		mappingsFromSGDFile.keySet().stream().forEach(k ->
+		{
+			globalMap.merge(k, mappingsFromSGDFile.get(k), (s,t) -> {t.addAll(s); return t;});
+		});
+
+		logger.info("number of keys in global mapping: {}", globalMap.size());
+
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
 				FileWriter writer = new FileWriter(outputPath + speciesName + "_" + PPIS_MAPPED_TO_HUMAN_FILE);
 				FileWriter mappingFailureReasons = new FileWriter(outputPath + speciesName + "_mapping_errors_details.log");
@@ -263,7 +283,7 @@ public class MapToHuman
 				int numMappingsInStringDBOnly = 0;
 				List<CSVRecord> records = parser.getRecords();
 				int totalNumRecords = records.size();
-				Set<String> outputLines = new HashSet<>();
+				Set<String> mappedPPILines = new HashSet<>();
 				int selfInteractions = 0;
 				for (CSVRecord record : records)
 				{
@@ -279,52 +299,54 @@ public class MapToHuman
 							protein1 = fixedProteins[0];
 							protein2 = fixedProteins[1];
 						}
+
 						// Check if this PPI has experiment score > 0 (it will be in interactionsWithExperiments)
 						if (interactionsWithExperiments.contains(putProteinsInOrder(protein1, protein2)))
 						{
-							boolean protein1MapsGeneNameToAccession = uniProtGeneNameToAccessionMapping.containsKey(protein1)
-																		&& uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+							boolean protein1InGlobalMap = globalMap.containsKey(protein1) && globalMap.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+							boolean protein2InGlobalMap = globalMap.containsKey(protein2) && globalMap.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);;
 
-							boolean protein2MapsGeneNameToAccession = uniProtGeneNameToAccessionMapping.containsKey(protein2)
-																		&& uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+							// TODO: cleanup this mess...
+//							boolean protein1MapsGeneNameToAccession = uniProtGeneNameToAccessionMapping.containsKey(protein1)
+//																		&& uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+//
+//							boolean protein2MapsGeneNameToAccession = uniProtGeneNameToAccessionMapping.containsKey(protein2)
+//																		&& uniProtGeneNameToAccessionMapping.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
 
 
-							boolean protein1MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein1)
-																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein1).stream()
-																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
+//							boolean protein1MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein1)
+//																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein1).stream()
+//																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
+//
+//
+//							boolean protein2MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein2)
+//																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein2).stream()
+//																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
 
+//							boolean protein1MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein1)
+//																&& mappingsFromSGDFile.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
+//
+//							boolean protein2MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein2)
+//																&& mappingsFromSGDFile.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
 
-							boolean protein2MapsStringDBToAccession = uniProtStringDBsToAccessionMapping.containsKey(this.stringDBSpeciesCode + "." + protein2)
-																		&& uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein2).stream()
-																											.anyMatch(protein -> otherSpeciesMappedToHuman.containsKey(protein.replace(stringDBSpeciesCode + ".", "")));
+//							boolean proteinsAreInMapping = (protein1MapsGeneNameToAccession || protein1MapsStringDBToAccession || protein1MapsViaSGDMApping)
+//															&& (protein2MapsGeneNameToAccession || protein2MapsStringDBToAccession || protein2MapsViaSGDMApping);
 
-							boolean protein1MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein1)
-																&& mappingsFromSGDFile.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
-
-							boolean protein2MapsViaSGDMApping = mappingsFromSGDFile.containsKey(protein2)
-																&& mappingsFromSGDFile.get(protein2).stream().anyMatch(otherSpeciesMappedToHuman::containsKey);
-
-							boolean proteinsAreInMapping = (protein1MapsGeneNameToAccession || protein1MapsStringDBToAccession || protein1MapsViaSGDMApping)
-															&& (protein2MapsGeneNameToAccession || protein2MapsStringDBToAccession || protein2MapsViaSGDMApping);
-
-							if ((protein1MapsStringDBToAccession && !protein1MapsGeneNameToAccession)
-								|| (protein2MapsStringDBToAccession && !protein2MapsGeneNameToAccession))
-							{
-								useStringDBMapping = true;
-								numMappingsInStringDBOnly++;
-							}
+							boolean proteinsAreInMapping = protein1InGlobalMap && protein2InGlobalMap;
+//							if ((protein1MapsStringDBToAccession /*&& !protein1MapsGeneNameToAccession*/)
+//								|| (protein2MapsStringDBToAccession /*&& !protein2MapsGeneNameToAccession*/))
+//							{
+//								useStringDBMapping = true;
+//								numMappingsInStringDBOnly++;
+//							}
 
 							numBindingAndExperimentsGt0++;
 							if (proteinsAreInMapping)
 							{
 								numPPIsInMapping++;
 								// Ok we need to get the accession that is also in the PANTHER species mapping...
-								String protein1Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, uniProtGeneNameToAccessionMapping, uniProtStringDBsToAccessionMapping, mappingsFromSGDFile, protein1, protein1MapsGeneNameToAccession);
-								String protein2Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, uniProtGeneNameToAccessionMapping, uniProtStringDBsToAccessionMapping, mappingsFromSGDFile, protein2, protein2MapsGeneNameToAccession);
-//								String protein2Accession = protein2MapsGeneNameToAccession
-//															? uniProtGeneNameToAccessionMapping.get(protein2).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
-//															: uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein2)
-//																								.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
+								String protein1Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, globalMap, uniProtStringDBsToAccessionMapping, protein1);
+								String protein2Accession = getUniProtAccessionForProtein(otherSpeciesMappedToHuman, globalMap, uniProtStringDBsToAccessionMapping, protein2);
 
 								// Self-interactions occur when two of the non-human proteins both map to the exact same human protein (and they do not map to any other proteins).
 								// These are ignored in the output. When two non-human proteins map to multiple human proteins where some of them are the same,
@@ -342,7 +364,7 @@ public class MapToHuman
 								}
 								if (!selfInteraction)
 								{
-									outputLines.add( putProteinsInOrder(protein1Accession + " (Human: " + String.join(",", humanProteins1.stream().sorted().collect(Collectors.toList())) + ")",
+									mappedPPILines.add( putProteinsInOrder(protein1Accession + " (Human: " + String.join(",", humanProteins1.stream().sorted().collect(Collectors.toList())) + ")",
 										 						protein2Accession + " (Human: " + String.join(",", humanProteins2.stream().sorted().collect(Collectors.toList())) + ")" ) + "\n" );
 								}
 							}
@@ -361,11 +383,11 @@ public class MapToHuman
 				logger.info("{} PPIs had experiments > 0 AND were binding.", numBindingAndExperimentsGt0);
 				logger.info("{} PPIs were in the mapping", numPPIsInMapping);
 				logger.info("{} self-interactions were omitted from output.", selfInteractions);
-				for (String line : outputLines.stream().sorted().collect(Collectors.toList()))
+				for (String line : mappedPPILines.stream().sorted().collect(Collectors.toList()))
 				{
 					writer.write(line);
 				}
-				logger.info("Number of \"binding\" StringDB interactions (PPIs) that mapped between species: {}; out of a total of {} records.", outputLines.size(), parser.getRecordNumber());
+				logger.info("Number of \"binding\" StringDB interactions (PPIs) that mapped between species: {}; out of a total of {} records.", mappedPPILines.size(), parser.getRecordNumber());
 				logger.info("Number of proteins that were only mapped as StringDB-to-UniProt Accession: {}", numMappingsInStringDBOnly);
 				logger.info("Number of proteins that could not map to UniProt accessions: {}", unmappedIdentifiers.size());
 				for (String unmapped : unmappedIdentifiers)
@@ -407,27 +429,27 @@ public class MapToHuman
 		}
 	}
 
-	private String getUniProtAccessionForProtein(Map<String, Set<String>> otherSpeciesMappedToHuman, Map<String, Set<String>> uniProtGeneNameToAccessionMapping, Map<String, Set<String>> uniProtStringDBsToAccessionMapping, Map<String, Set<String>> mappingsFromSGDFile, String protein, boolean proteinMapsGeneNameToAccession)
+	private String getUniProtAccessionForProtein(Map<String, Set<String>> otherSpeciesMappedToHuman, Map<String, Set<String>> globalMapping, Map<String, Set<String>> uniProtStringDBsToAccessionMapping, String protein)
 	{
-		// well, this code is rather ugly...
+		// well, this code is rather ugly... but not as bad as before.
 		String proteinAccession = null;
-		if (proteinMapsGeneNameToAccession)
-		{
-			proteinAccession = uniProtGeneNameToAccessionMapping.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get();
-		}
-		else if (mappingsFromSGDFile.containsKey(protein))
-		{
-			proteinAccession = mappingsFromSGDFile.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get();
-		}
-		else
+
+		// Let's try the StringDB mappings (also from UniProt) because that requires special identifier manipulation
+		if (uniProtStringDBsToAccessionMapping.containsKey(protein))
 		{
 			proteinAccession = uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
 		}
-
-//		String proteinAccession = proteinMapsGeneNameToAccession
-//									? uniProtGeneNameToAccessionMapping.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get()
-//									: uniProtStringDBsToAccessionMapping.get(this.stringDBSpeciesCode + "." + protein)
-//																		.stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p.replace(this.stringDBSpeciesCode + ".", ""))).findFirst().get();
+		else
+		{
+			try
+			{
+				proteinAccession = globalMapping.get(protein).stream().filter(p -> otherSpeciesMappedToHuman.containsKey(p)).findFirst().get();
+			}
+			catch (NoSuchElementException e)
+			{
+				logger.error("NoSuchElementException caught when trying to get mapping for protein: {}", protein);
+			}
+		}
 		return proteinAccession;
 	}
 
