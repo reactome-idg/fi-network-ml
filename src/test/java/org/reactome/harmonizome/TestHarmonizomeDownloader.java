@@ -2,11 +2,20 @@ package org.reactome.harmonizome;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.Set;
 
 import org.apache.http.client.ClientProtocolException;
 import org.junit.Test;
+import org.reactome.idg.harmonizome.DataProcessor;
 
 public class TestHarmonizomeDownloader {
+    
+    @Test
+    public void testLoadGeneList() throws Exception {
+        DataProcessor processor = new DataProcessor();
+        Set<String> genes = processor.getAllGenes();
+        System.out.println("Total genes: " + genes.size());
+    }
 
 	@Test
 	public void testDownloadHarmonizomeFileIT() throws URISyntaxException, ClientProtocolException, IOException
