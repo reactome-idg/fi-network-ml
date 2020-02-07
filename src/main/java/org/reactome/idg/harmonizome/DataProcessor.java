@@ -38,7 +38,7 @@ public class DataProcessor {
     public DataProcessor() {
     }
    
-    private Set<String> getAllGenes() throws Exception {
+    public Set<String> getAllGenes() throws Exception {
         if (allGenes != null)
             return allGenes;
         // Need to load all human genes from a Reactome database
