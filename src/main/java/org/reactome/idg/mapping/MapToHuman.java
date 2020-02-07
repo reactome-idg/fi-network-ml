@@ -65,6 +65,7 @@ public class MapToHuman
 
 	private void mapOtherSpeciesToHuman(String speciesName, boolean allowBidirectionalMappings) throws FileNotFoundException, IOException, URISyntaxException
 	{
+		logger.info("Creating PPIs for proteins mapped from {} to HUMAN", speciesName);
 		this.outputPath = "output/"+speciesName+"_results/";
 		Files.createDirectories(Paths.get(this.outputPath));
 		// Mapping of UniProt identifiers from the Other species to Human, according to PANTHER.
@@ -202,7 +203,7 @@ public class MapToHuman
 				FileWriter writer = new FileWriter(ppisWithExperimentsScoreFile);)
 		{
 			List<CSVRecord> records = parser.getRecords();
-			logger.info("{} records will be parsed.", records.size());
+			logger.info("Reading StringDB \"links\" file; {} records will be parsed.", records.size());
 			for (CSVRecord  record : records)
 			{
 				int experiments = Integer.parseInt(record.get("experiments"));
@@ -372,8 +373,8 @@ public class MapToHuman
 							else
 							{
 								mappingFailureReasons.write("PPI ("+putProteinsInOrder(protein1, protein2)+") could not be fully mapped because:" );
-								logErrorsWithProtein(uniProtGeneNameToAccessionMapping, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein1);
-								logErrorsWithProtein(uniProtGeneNameToAccessionMapping, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein2);
+								logErrorsWithProtein(globalMap, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein1);
+								logErrorsWithProtein(globalMap, mappingFailureReasons, unmappedIdentifiers, noHumanMappedIdentifiers, npeIdentifiers, otherSpeciesMappedToHuman, protein2);
 								mappingFailureReasons.write('\n');
 							}
 						}
@@ -407,16 +408,16 @@ public class MapToHuman
 		}
 	}
 
-	private void logErrorsWithProtein(Map<String, Set<String>> uniProtGeneNameToAccessionMapping, FileWriter mappingFailureReasons, Set<String> unmappedIdentifiers, Set<String> noHumanMappedIdentifiers, Set<String> npeIdentifiers, Map<String, Set<String>> otherSpeciesMappedToHuman, String protein1) throws IOException
+	private void logErrorsWithProtein(Map<String, Set<String>> geneNameToAccessionMapping, FileWriter mappingFailureReasons, Set<String> unmappedIdentifiers, Set<String> noHumanMappedIdentifiers, Set<String> npeIdentifiers, Map<String, Set<String>> otherSpeciesMappedToHuman, String protein1) throws IOException
 	{
-		if (!uniProtGeneNameToAccessionMapping.containsKey(protein1))
+		if (!geneNameToAccessionMapping.containsKey(protein1))
 		{
 			mappingFailureReasons.write("\t No gene-to-accession mapping for " + protein1);
 			unmappedIdentifiers.add(protein1);
 		}
 		try
 		{
-			if (!uniProtGeneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
+			if (!geneNameToAccessionMapping.get(protein1).stream().anyMatch(otherSpeciesMappedToHuman::containsKey))
 			{
 				mappingFailureReasons.write("\t " + protein1 + " could not map to Human.");
 				noHumanMappedIdentifiers.add(protein1);
@@ -503,6 +504,7 @@ public class MapToHuman
 
 	private Map<String, Set<String>> mapToUniProtAccessions(String stringDBSpeciesCode, Map<String, Set<String>> preexistingMappings, Set<String> interactionsWithExperiments, UniprotDB mappingSource) throws IOException
 	{
+		logger.info("Mapping from {} to UniProt Accession", mappingSource);
 		int interactorsAlreadyMapped = 0;
 		// Now map the UniProt Gene Names (from StringDB) to UniProt Accessions
 		Set<String> identifiersToMapToUniprot = new HashSet<>();
@@ -530,7 +532,7 @@ public class MapToHuman
 				identifiersToMapToUniprot.add(interactor2);
 			}
 		}
-		logger.info("{} interactors were already found in a pre-existing mapping, so will not be sent to uniprot. {} will be mapped.", interactorsAlreadyMapped, identifiersToMapToUniprot.size());
+		logger.info("{} interactors (non-distinct) were already found in a pre-existing mapping, so will not be sent to uniprot. {} will be mapped.", interactorsAlreadyMapped, identifiersToMapToUniprot.size());
 		Map<String, Set<String>> uniProtGeneNameToAccessionMapping = getMappingsFromUniProt(identifiersToMapToUniprot, mappingSource);
 
 		try(FileWriter writer = new FileWriter(this.outputPath + stringDBSpeciesCode + "_"+mappingSource+"_mappedToUniProt.tsv"))
