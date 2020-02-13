@@ -368,67 +368,82 @@ public class MapToHuman
 		logger.info("{} StringDB-to-UniProt identifiers", otherSpeciesStringDBToUniProt.size());
 		String pathToOutputPPIFile = this.outputPath + speciesName + "_MAPPED_PPIS.tsv";
 		int selfInteractions = 0;
+		int unmappedPPIs = 0;
 		Set<Ppi> mappedPPIs = new HashSet<>();
 		// If a PPI from StringDB (with experiments > 0 && mode==binding) has both proteins in the mapping, then it's OK! ...and should be written to output file.
-		try(FileWriter writer = new FileWriter(pathToOutputPPIFile)) {
-		for (Ppi ppi : ppisFromStringDB)
+		try(FileWriter writer = new FileWriter(pathToOutputPPIFile);
+			FileWriter unMappedIdentifiers = new FileWriter(this.outputPath + speciesName + "_unmapped_proteins.txt"))
 		{
-			Protein p1 = ppi.getProtein1(), p2 = ppi.getProtein2();
+			for (Ppi ppi : ppisFromStringDB.stream().sorted().collect(Collectors.toList()))
+			{
+				Protein p1 = ppi.getProtein1();
+				Protein p2 = ppi.getProtein2();
 
-			String p1AsUniProt = null, p2AsUniProt = null;
-			if (p1.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
-			{
-				if (otherSpeciesStringDBToUniProt.containsKey(p1.getIdentifierValue()))
+				String p1AsUniProt = null, p2AsUniProt = null;
+				if (p1.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
 				{
-					p1AsUniProt = otherSpeciesStringDBToUniProt.get(p1.getIdentifierValue()).stream().findFirst().get();
+					if (otherSpeciesStringDBToUniProt.containsKey(p1.getIdentifierValue()))
+					{
+						p1AsUniProt = otherSpeciesStringDBToUniProt.get(p1.getIdentifierValue()).stream().findFirst().get();
+					}
+					else
+					{
+						unMappedIdentifiers.write(p1 + " has a UniProt identifier but is not "+speciesName+" StringDB-to-UniProt in mapping\n");
+					}
 				}
-//					else
-//					{
-//						logger.error("{} has a UniProt identifier but is not in mapping", p1);
-//					}
-			}
-			if (p2.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
-			{
-				if (otherSpeciesStringDBToUniProt.containsKey(p2.getIdentifierValue()))
+				if (p2.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
 				{
-					p2AsUniProt = otherSpeciesStringDBToUniProt.get(p2.getIdentifierValue()).stream().findFirst().get();
+					if (otherSpeciesStringDBToUniProt.containsKey(p2.getIdentifierValue()))
+					{
+						p2AsUniProt = otherSpeciesStringDBToUniProt.get(p2.getIdentifierValue()).stream().findFirst().get();
+					}
+					else
+					{
+						// Need to de-duplicate the content of this output.
+						unMappedIdentifiers.write(p2 + " has a UniProt identifier but is not "+speciesName+" StringDB-to-UniProt in mapping\n");
+					}
 				}
-//					else
-//					{
-//						logger.error("{} has a UniProt identifier but is not in mapping", p2);
-//					}
-			}
 
-			if (p1AsUniProt != null && p2AsUniProt != null)
-			{
-				if (!p1AsUniProt.equals(p2AsUniProt))
+				if (p1AsUniProt != null && p2AsUniProt != null)
 				{
-//						writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\n");
-//					Protein mappedP1 = new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
-//					Protein mappedP2 = new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
-//					Ppi mappedPpi = new Ppi(mappedP1, mappedP2);
-//					mappedPPIs.add(mappedPpi);
-					writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\t" + "(" + p1AsUniProt + " was mapped from: " + ppi.getProtein1() + "; " + p2AsUniProt + " was mapped from: " + ppi.getProtein2() + ")" + System.lineSeparator() );
+					if (!p1AsUniProt.equals(p2AsUniProt))
+					{
+	//						writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\n");
+	//					Protein mappedP1 = new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
+	//					Protein mappedP2 = new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
+	//					Ppi mappedPpi = new Ppi(mappedP1, mappedP2);
+	//					mappedPPIs.add(mappedPpi);
+						StringBuilder sb = new StringBuilder();
+						sb.append(p1AsUniProt).append('\t').append(p2AsUniProt)
+							.append("\t(").append(p1AsUniProt).append(" was mapped from: ").append(ppi.getProtein1()).append("; ")
+							.append(p2AsUniProt).append(" was mapped from: ").append(ppi.getProtein2()).append(")").append(System.lineSeparator());
+	//					writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\t" + "(" + p1AsUniProt + " was mapped from: " + ppi.getProtein1() + "; " + p2AsUniProt + " was mapped from: " + ppi.getProtein2() + ")" + System.lineSeparator() );
+						writer.write(sb.toString());
+					}
+					else
+					{
+						selfInteractions++;
+					}
 				}
 				else
 				{
-					selfInteractions++;
+					unmappedPPIs++;
 				}
 			}
-		}
-//		try(FileWriter writer = new FileWriter(pathToOutputPPIFile))
-//		{
-//			for (Ppi ppi : mappedPPIs.stream().sorted().collect(Collectors.toList()))
-//			{
-//				writer.write(ppi + "\n");
-//			}
-//		}
+	//		try(FileWriter writer = new FileWriter(pathToOutputPPIFile))
+	//		{
+	//			for (Ppi ppi : mappedPPIs.stream().sorted().collect(Collectors.toList()))
+	//			{
+	//				writer.write(ppi + "\n");
+	//			}
+	//		}
 		}
 		catch (IOException e)
 		{
 			logger.error("File error!", e);
 		}
 		logger.info("{} self-interactions were ommitted.", selfInteractions);
+		logger.info("{} PPIs had mapping problems.", unmappedPPIs);
 	}
 
 	private static String extractUniprotIdentifier(String[] humanParts)
