@@ -74,10 +74,15 @@ public class MapToHuman
 			return this.identifierValue;
 		}
 
+		public String toDetailedString()
+		{
+			return this.identifierType.toString() + ":" + this.identifierValue;
+		}
+
 		@Override
 		public int hashCode()
 		{
-			return super.hashCode();
+			return this.toDetailedString().hashCode();
 		}
 
 		@Override
@@ -347,7 +352,10 @@ public class MapToHuman
 		String pathToOutputPPIFile = this.outputPath + speciesName + "_MAPPED_PPIS.tsv";
 		int selfInteractions = 0;
 		int unmappedPPIs = 0;
+		Set<String> ppiLines = new HashSet<>(ppisFromStringDB.size());
+		Map<Ppi, Set<String>> orthologMap = new HashMap<>(ppisFromStringDB.size());
 		Set<Ppi> mappedPPIs = new HashSet<>();
+		Set<Ppi> orthologPPIs = new HashSet<>();
 		// If a PPI from StringDB (with experiments > 0 && mode==binding) has both proteins in the mapping, then it's OK! ...and should be written to output file.
 		try(FileWriter writer = new FileWriter(pathToOutputPPIFile);
 			FileWriter unMappedIdentifiers = new FileWriter(this.outputPath + speciesName + "_unmapped_proteins.txt"))
@@ -356,7 +364,8 @@ public class MapToHuman
 			{
 				Protein p1 = ppi.getProtein1();
 				Protein p2 = ppi.getProtein2();
-
+				Set<String> p1Orthologs = null;
+				Set<String> p2Orthologs = null;
 				String p1AsUniProt = null, p2AsUniProt = null;
 				if (p1.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
 				{
@@ -366,7 +375,7 @@ public class MapToHuman
 					}
 					else
 					{
-						unMappedIdentifiers.write(p1 + " has a UniProt identifier but is not "+speciesName+" StringDB-to-UniProt in mapping\n");
+						unMappedIdentifiers.write(p1 + " is not "+speciesName+" StringDB-to-UniProt in mapping\n");
 					}
 				}
 				if (p2.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
@@ -378,25 +387,50 @@ public class MapToHuman
 					else
 					{
 						// Need to de-duplicate the content of this output.
-						unMappedIdentifiers.write(p2 + " has a UniProt identifier but is not "+speciesName+" StringDB-to-UniProt in mapping\n");
+						unMappedIdentifiers.write(p2 + " is not "+speciesName+" StringDB-to-UniProt in mapping\n");
 					}
 				}
 
 				if (p1AsUniProt != null && p2AsUniProt != null)
 				{
+					p1Orthologs = orthologProteins.get(p1AsUniProt);
+					p2Orthologs = orthologProteins.get(p1AsUniProt);
 					if (!p1AsUniProt.equals(p2AsUniProt))
 					{
-	//						writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\n");
-	//					Protein mappedP1 = new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
-	//					Protein mappedP2 = new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION);
-	//					Ppi mappedPpi = new Ppi(mappedP1, mappedP2);
-	//					mappedPPIs.add(mappedPpi);
 						StringBuilder sb = new StringBuilder();
 						sb.append(p1AsUniProt).append('\t').append(p2AsUniProt)
-							.append("\t(").append(p1AsUniProt).append(" was mapped from: ").append(ppi.getProtein1()).append("; ")
-							.append(p2AsUniProt).append(" was mapped from: ").append(ppi.getProtein2()).append(")").append(System.lineSeparator());
-	//					writer.write(p1AsUniProt + "\t" + p2AsUniProt + "\t" + "(" + p1AsUniProt + " was mapped from: " + ppi.getProtein1() + "; " + p2AsUniProt + " was mapped from: " + ppi.getProtein2() + ")" + System.lineSeparator() );
-						writer.write(sb.toString());
+							.append("\t").append(p1AsUniProt).append(" map from: ").append(ppi.getProtein1()).append(", ")
+							.append(p2AsUniProt).append(" map from: ").append(ppi.getProtein2()).append(System.lineSeparator());
+						ppiLines.add(sb.toString());
+						// Now... we do the orthologs...
+						if (p1Orthologs != null && p2Orthologs != null)
+						{
+
+							for (String p1Ortholog : p1Orthologs)
+							{
+								for (String p2Ortholog : p2Orthologs)
+								{
+									if (!p1Ortholog.equals(p2Ortholog))
+									{
+										sb = new StringBuilder();
+										Ppi orthologPPI = new Ppi(new Protein(p1Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION));
+										Ppi ppiAsUniProt = new Ppi(new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION));
+										Set<String> reasons = orthologMap.computeIfAbsent(orthologPPI, x -> new HashSet<>());
+										sb.append(orthologPPI.getProtein1()).append(" ortholog of ").append(ppiAsUniProt.getProtein1());
+										reasons.add(sb.toString());
+
+										sb = new StringBuilder();
+										sb.append(orthologPPI.getProtein2()).append(" ortholog of ").append(ppiAsUniProt.getProtein2());
+										reasons.add(sb.toString());
+										orthologMap.put(orthologPPI, reasons);
+									}
+									else
+									{
+										selfInteractions++;
+									}
+								}
+							}
+						}
 					}
 					else
 					{
@@ -408,13 +442,21 @@ public class MapToHuman
 					unmappedPPIs++;
 				}
 			}
-	//		try(FileWriter writer = new FileWriter(pathToOutputPPIFile))
-	//		{
-	//			for (Ppi ppi : mappedPPIs.stream().sorted().collect(Collectors.toList()))
-	//			{
-	//				writer.write(ppi + "\n");
-	//			}
-	//		}
+			logger.info("{} PPIs in output", ppiLines.size());
+			for (String line : ppiLines.stream().sorted().collect(Collectors.toList()))
+			{
+				writer.write(line);
+			}
+			logger.info("{} PPIs (from Orthologs) in output", orthologMap.size());
+			for (Entry<Ppi, Set<String>> ortholog : orthologMap.entrySet().stream().sorted( (e1,e2) -> e1.getKey().compareTo(e2.getKey()) ).collect(Collectors.toList()))
+			{
+				writer.write(ortholog.getKey().toString() + "\t(");
+				for (String reason : ortholog.getValue().stream().sorted().collect(Collectors.toList()))
+				{
+					writer.write(reason + "; ");
+				}
+				writer.write(")" + System.lineSeparator());
+			}
 		}
 		catch (IOException e)
 		{
