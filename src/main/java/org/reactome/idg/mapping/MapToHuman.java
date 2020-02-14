@@ -1,33 +1,24 @@
 package org.reactome.idg.mapping;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.reactome.idg.util.UniprotFileRetriever;
-import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class MapToHuman
 {
@@ -35,21 +26,32 @@ public class MapToHuman
 	private static final String HUMAN = "HUMAN";
 	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
+	private Set<String> unmappedProteins = new TreeSet<>();
+	enum Species
+	{
+		YEAST(4932), HUMAN(9606), SCHPO(4896);
+		private int speciesCode;
+		Species(int code)
+		{
+			this.speciesCode = code;
+		}
+		public int getSpeciesCode()
+		{
+			return this.speciesCode;
+		}
+	}
 
 	private String outputPath = "";
 
-	private String stringDBSpeciesCode;
+	private int stringDBSpeciesCode;
 
 	public static void main(String[] args) throws IOException, URISyntaxException
 	{
 		MapToHuman mapper = new MapToHuman();
-//		mapper.stringDBSpeciesCode = "4932";
 //		mapper.mapOtherSpeciesToHuman("YEAST", true);
-//		mapper.stringDBSpeciesCode = "4896";
 //		mapper.mapOtherSpeciesToHuman("SCHPO", true);
-		mapper.stringDBSpeciesCode = "4932";
-		mapper.generateOtherSpeciesToHumanPPIs("YEAST");
-
+		mapper.generateOtherSpeciesToHumanPPIs(Species.YEAST);
+		mapper.generateOtherSpeciesToHumanPPIs(Species.SCHPO);
 	}
 
 	enum ProteinIdentifierType
@@ -180,7 +182,7 @@ public class MapToHuman
 			List<CSVRecord> records = parser.getRecords();
 			for (CSVRecord record : records)
 			{
-				boolean useStringDBMapping = false;
+				// Only extract records where mode==binding
 				if (record.get("mode").equals("binding"))
 				{
 					Protein protein1 = new Protein(record.get("item_id_a"), ProteinIdentifierType.STRINGDB);
@@ -215,6 +217,7 @@ public class MapToHuman
 			{
 				int experiments = Integer.parseInt(record.get("experiments"));
 //				int dbScore = Integer.parseInt(record.get("database"));
+				// Only extract data for records where "experiments > 0"
 				if (experiments > 0 /*|| dbScore > 0*/)
 				{
 					Protein protein1 = new Protein (record.get("protein1") , ProteinIdentifierType.STRINGDB);
@@ -239,16 +242,16 @@ public class MapToHuman
 		Set<Ppi> ppisBinding = getBindingPPIs(stringDBActionsFile);
 		logger.info("{} PPIs with mode==binding", ppisBinding.size());
 		Set<Ppi> ppisBindingAndExperiments = ppisBinding;
+		// this will calculate the intersection of "PPIs with experiments > 0" and "Binding PPIs"
 		ppisBindingAndExperiments.retainAll(ppisWithExperiments);
 		logger.info("{} PPIs with experiments > 0 AND mode==binding", ppisBindingAndExperiments.size());
 		return ppisBindingAndExperiments;
 	}
 
-	private String[] extractIdentifiersFromPantherLine(String[] parts, String species1)
+	private static String[] extractIdentifiersFromPantherLine(String[] parts, String species1)
 	{
 		String[] humanParts;
 		String[] otherSpeciesParts;
-
 		if (species1.equals(HUMAN))
 		{
 			humanParts = parts[0].split("\\|");
@@ -262,11 +265,11 @@ public class MapToHuman
 		// Now... get the identifier values for Human and the other species.
 		String humanIdentifier = extractUniprotIdentifier(humanParts);
 		String otherSpeciesIdentifier = extractUniprotIdentifier(otherSpeciesParts);
-
+		// Return the human and non-human identifier from the Panther file.
 		return new String[]{ humanIdentifier, otherSpeciesIdentifier } ;
 	}
 
-	private Map<String, Set<String>> getOrthologMappedProteins(String pathToOrthologMappingFile, boolean allowBidirectionalMapping, String speciesName)
+	private static Map<String, Set<String>> getOrthologMappedProteins(String pathToOrthologMappingFile, boolean allowBidirectionalMapping, String speciesName)
 	{
 		Map<String, Set<String>> otherSpeciesMappedToHuman = new HashMap<>();
 		try(BufferedReader br = new BufferedReader(new FileReader(pathToOrthologMappingFile)))
@@ -294,7 +297,7 @@ public class MapToHuman
 					}
 					else
 					{
-						identifiers = new HashSet<>();
+						identifiers = new TreeSet<>();
 					}
 					identifiers.add(humanIdentifier);
 					otherSpeciesMappedToHuman.put(otherSpeciesIdentifier, identifiers);
@@ -316,17 +319,22 @@ public class MapToHuman
 		try(BufferedReader br = new BufferedReader(new FileReader(pathToMappings)))
 		{
 			String line = br.readLine();
-
+			// skip the header line.
+			line = br.readLine();
 			while (line != null)
 			{
 				String[] parts = line.split("\\t");
-				// 2nd and 3rd columns are the ones we're interested in.
-				String stringDBIdentifier = parts[2];
-				String uniProtIdentifier = parts[1].split("\\|")[0];
+				// first field is species, we should filter on that.
+				if (Integer.parseInt(parts[0]) == this.stringDBSpeciesCode)
+				{
+					// 2nd and 3rd columns are the ones we're interested in.
+					String stringDBIdentifier = parts[2];
+					String uniProtIdentifier = parts[1].split("\\|")[0];
 
-				Set<String> s = mappings.containsKey(stringDBIdentifier) ? mappings.get(stringDBIdentifier) : new HashSet<>();
-				s.add(uniProtIdentifier);
-				mappings.put(stringDBIdentifier, s);
+					Set<String> s = mappings.containsKey(stringDBIdentifier) ? mappings.get(stringDBIdentifier) : new HashSet<>();
+					s.add(uniProtIdentifier);
+					mappings.put(stringDBIdentifier, s);
+				}
 				line = br.readLine();
 			}
 		}
@@ -337,28 +345,31 @@ public class MapToHuman
 		return mappings;
 	}
 
-	private void generateOtherSpeciesToHumanPPIs(String speciesName)
+	private void generateOtherSpeciesToHumanPPIs(Species species)
 	{
-		this.outputPath = "output/"+speciesName+"_results/";
+		this.stringDBSpeciesCode = species.getSpeciesCode();
+		this.outputPath = "output/"+species+"_results/";
+
+		logger.info("Generating PPIs for {}", species);
+
 		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.actions.v11.0.txt";
 		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
 
 		Set<Ppi> ppisFromStringDB = this.getBindingPPIsWithExperiments(stringDBProteinActionsFile, stringDBProteinLinksFile);
 		String pathToOrthologMappingFile = PATH_TO_DATA_FILES + "Orthologs_HCOP";
-		Map<String, Set<String>> orthologProteins = this.getOrthologMappedProteins(pathToOrthologMappingFile, true, speciesName);
+		Map<String, Set<String>> orthologProteins = getOrthologMappedProteins(pathToOrthologMappingFile, true, species.toString());
 		logger.info("{} ortholog proteins", orthologProteins.size());
-		Map<String, Set<String>> otherSpeciesStringDBToUniProt = getStringDBToUniProtMappings(PATH_TO_DATA_FILES + "yeast.uniprot_2_string.2018.tsv");
+		Map<String, Set<String>> otherSpeciesStringDBToUniProt = getStringDBToUniProtMappings(PATH_TO_DATA_FILES + "all_organisms.uniprot_2_string.2018.tsv");
 		logger.info("{} StringDB-to-UniProt identifiers", otherSpeciesStringDBToUniProt.size());
-		String pathToOutputPPIFile = this.outputPath + speciesName + "_MAPPED_PPIS.tsv";
+		String pathToOutputPPIFile = this.outputPath + species + "_MAPPED_PPIS.tsv";
 		int selfInteractions = 0;
 		int unmappedPPIs = 0;
-		Set<String> ppiLines = new HashSet<>(ppisFromStringDB.size());
+		Set<String> ppiLines = new TreeSet<>();
+
 		Map<Ppi, Set<String>> orthologMap = new HashMap<>(ppisFromStringDB.size());
-		Set<Ppi> mappedPPIs = new HashSet<>();
-		Set<Ppi> orthologPPIs = new HashSet<>();
 		// If a PPI from StringDB (with experiments > 0 && mode==binding) has both proteins in the mapping, then it's OK! ...and should be written to output file.
 		try(FileWriter writer = new FileWriter(pathToOutputPPIFile);
-			FileWriter unMappedIdentifiers = new FileWriter(this.outputPath + speciesName + "_unmapped_proteins.txt"))
+			FileWriter unMappedIdentifiers = new FileWriter(this.outputPath + species + "_unmapped_proteins.txt"))
 		{
 			for (Ppi ppi : ppisFromStringDB.stream().sorted().collect(Collectors.toList()))
 			{
@@ -366,46 +377,33 @@ public class MapToHuman
 				Protein p2 = ppi.getProtein2();
 				Set<String> p1Orthologs = null;
 				Set<String> p2Orthologs = null;
-				String p1AsUniProt = null, p2AsUniProt = null;
+				String p1AsUniProt = null;
+				String p2AsUniProt = null;
 				if (p1.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
 				{
-					if (otherSpeciesStringDBToUniProt.containsKey(p1.getIdentifierValue()))
-					{
-						p1AsUniProt = otherSpeciesStringDBToUniProt.get(p1.getIdentifierValue()).stream().findFirst().get();
-					}
-					else
-					{
-						unMappedIdentifiers.write(p1 + " is not "+speciesName+" StringDB-to-UniProt in mapping\n");
-					}
+					p1AsUniProt = getProteinAsUniProt(otherSpeciesStringDBToUniProt, p1);
 				}
 				if (p2.getIdentifierType().equals(ProteinIdentifierType.STRINGDB))
 				{
-					if (otherSpeciesStringDBToUniProt.containsKey(p2.getIdentifierValue()))
-					{
-						p2AsUniProt = otherSpeciesStringDBToUniProt.get(p2.getIdentifierValue()).stream().findFirst().get();
-					}
-					else
-					{
-						// Need to de-duplicate the content of this output.
-						unMappedIdentifiers.write(p2 + " is not "+speciesName+" StringDB-to-UniProt in mapping\n");
-					}
+					p2AsUniProt = getProteinAsUniProt(otherSpeciesStringDBToUniProt, p2);
 				}
 
 				if (p1AsUniProt != null && p2AsUniProt != null)
 				{
 					p1Orthologs = orthologProteins.get(p1AsUniProt);
-					p2Orthologs = orthologProteins.get(p1AsUniProt);
+					p2Orthologs = orthologProteins.get(p2AsUniProt);
+					// Only continue if this is NOT a self-interaction.
 					if (!p1AsUniProt.equals(p2AsUniProt))
 					{
+						// Output will include the proteins, and their mapping.
 						StringBuilder sb = new StringBuilder();
-						sb.append(p1AsUniProt).append('\t').append(p2AsUniProt)
-							.append("\t").append(p1AsUniProt).append(" map from: ").append(ppi.getProtein1()).append(", ")
+						sb.append(p1AsUniProt).append('\t').append(p2AsUniProt).append("\t")
+							.append(p1AsUniProt).append(" map from: ").append(ppi.getProtein1()).append(", ")
 							.append(p2AsUniProt).append(" map from: ").append(ppi.getProtein2()).append(System.lineSeparator());
 						ppiLines.add(sb.toString());
-						// Now... we do the orthologs...
+						// Now... we do the orthologs... (if any exist)
 						if (p1Orthologs != null && p2Orthologs != null)
 						{
-
 							for (String p1Ortholog : p1Orthologs)
 							{
 								for (String p2Ortholog : p2Orthologs)
@@ -413,15 +411,20 @@ public class MapToHuman
 									if (!p1Ortholog.equals(p2Ortholog))
 									{
 										sb = new StringBuilder();
+										// Create a new Ortholog PPI
 										Ppi orthologPPI = new Ppi(new Protein(p1Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION));
+										// Create a PPI based on the UniProt identifiers.
 										Ppi ppiAsUniProt = new Ppi(new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION));
-										Set<String> reasons = orthologMap.computeIfAbsent(orthologPPI, x -> new HashSet<>());
+										// build up the list of reasons that this PPI is in the output: for orthologPPI, what are its proteins orthologs of? That goes in the output
+										// to make it easier to trace why the PPI is there.
+										Set<String> reasons = orthologMap.computeIfAbsent(orthologPPI, x -> new TreeSet<>());
 										sb.append(orthologPPI.getProtein1()).append(" ortholog of ").append(ppiAsUniProt.getProtein1());
 										reasons.add(sb.toString());
-
+										// Now a new reason for Protein 2 (each protein should be a separate reason).
 										sb = new StringBuilder();
 										sb.append(orthologPPI.getProtein2()).append(" ortholog of ").append(ppiAsUniProt.getProtein2());
 										reasons.add(sb.toString());
+										// Use the new Ortholog PPI as the *key* in orthologMap - that way we can build up a list of "reasons" for this PPI.
 										orthologMap.put(orthologPPI, reasons);
 									}
 									else
@@ -439,31 +442,55 @@ public class MapToHuman
 				}
 				else
 				{
+					// If one of the proteins-as-UniProt values is NULL, it means there was a mapping problem.
+					// NOTE: this counter will be incremented for each PPI where a mapping problem occurs, but
+					// a single unmapped protein could be in multiple PPIs.
 					unmappedPPIs++;
 				}
 			}
+			// Write the PPIs to output.
 			logger.info("{} PPIs in output", ppiLines.size());
-			for (String line : ppiLines.stream().sorted().collect(Collectors.toList()))
+			for (String line : ppiLines)
 			{
 				writer.write(line);
 			}
+			// Write the PPIs from ortholog mapping to output.
 			logger.info("{} PPIs (from Orthologs) in output", orthologMap.size());
-			for (Entry<Ppi, Set<String>> ortholog : orthologMap.entrySet().stream().sorted( (e1,e2) -> e1.getKey().compareTo(e2.getKey()) ).collect(Collectors.toList()))
+			for (Entry<Ppi, Set<String>> ortholog : orthologMap.entrySet()/*.stream().sorted( (e1,e2) -> e1.getKey().compareTo(e2.getKey()) ).collect(Collectors.toList())*/)
 			{
 				writer.write(ortholog.getKey().toString() + "\t(");
-				for (String reason : ortholog.getValue().stream().sorted().collect(Collectors.toList()))
+				for (String reason : ortholog.getValue())
 				{
 					writer.write(reason + "; ");
 				}
 				writer.write(")" + System.lineSeparator());
+			}
+			logger.info("{} distinct unmapped proteins.", this.unmappedProteins.size());
+			for (String unmappedProtein : this.unmappedProteins)
+			{
+				unMappedIdentifiers.write(unmappedProtein + System.lineSeparator());
 			}
 		}
 		catch (IOException e)
 		{
 			logger.error("File error!", e);
 		}
-		logger.info("{} self-interactions were ommitted.", selfInteractions);
 		logger.info("{} PPIs had mapping problems.", unmappedPPIs);
+		logger.info("{} self-interactions were ommitted.", selfInteractions);
+	}
+
+	private String getProteinAsUniProt(Map<String, Set<String>> otherSpeciesStringDBToUniProt, Protein protein)
+	{
+		String proteinAsUniProt = null;
+		if (otherSpeciesStringDBToUniProt.containsKey(protein.getIdentifierValue()))
+		{
+			proteinAsUniProt = otherSpeciesStringDBToUniProt.get(protein.getIdentifierValue()).stream().findFirst().get();
+		}
+		else
+		{
+			this.unmappedProteins.add(protein.toString());
+		}
+		return proteinAsUniProt;
 	}
 
 	private static String extractUniprotIdentifier(String[] humanParts)
