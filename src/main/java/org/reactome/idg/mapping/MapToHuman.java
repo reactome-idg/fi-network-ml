@@ -1,10 +1,11 @@
 package org.reactome.idg.mapping;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,9 +24,7 @@ import org.apache.logging.log4j.Logger;
 public class MapToHuman
 {
 	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
-	private static final String HUMAN = "HUMAN";
-	private static final String PATH_TO_DATA_FILES = "src/main/resources/data/";
-	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
+	private static final String PATH_TO_DATA_FILES = Paths.get("src","main","resources","data").toString() + File.separator;
 	private Set<String> unmappedProteins = new TreeSet<>();
 	enum Species
 	{
@@ -45,11 +44,9 @@ public class MapToHuman
 
 	private int stringDBSpeciesCode;
 
-	public static void main(String[] args) throws IOException, URISyntaxException
+	public static void main(String[] args)
 	{
 		MapToHuman mapper = new MapToHuman();
-//		mapper.mapOtherSpeciesToHuman("YEAST", true);
-//		mapper.mapOtherSpeciesToHuman("SCHPO", true);
 		mapper.generateOtherSpeciesToHumanPPIs(Species.YEAST);
 		mapper.generateOtherSpeciesToHumanPPIs(Species.SCHPO);
 	}
@@ -248,11 +245,11 @@ public class MapToHuman
 		return ppisBindingAndExperiments;
 	}
 
-	private static String[] extractIdentifiersFromPantherLine(String[] parts, String species1)
+	private String[] extractIdentifiersFromPantherLine(String[] parts, String species1)
 	{
 		String[] humanParts;
 		String[] otherSpeciesParts;
-		if (species1.equals(HUMAN))
+		if (species1.equals(Species.HUMAN.toString()))
 		{
 			humanParts = parts[0].split("\\|");
 			otherSpeciesParts = parts[1].split("\\|");
@@ -263,13 +260,13 @@ public class MapToHuman
 			otherSpeciesParts = parts[0].split("\\|");
 		}
 		// Now... get the identifier values for Human and the other species.
-		String humanIdentifier = extractUniprotIdentifier(humanParts);
-		String otherSpeciesIdentifier = extractUniprotIdentifier(otherSpeciesParts);
+		String humanIdentifier = this.extractUniprotIdentifier(humanParts);
+		String otherSpeciesIdentifier = this.extractUniprotIdentifier(otherSpeciesParts);
 		// Return the human and non-human identifier from the Panther file.
 		return new String[]{ humanIdentifier, otherSpeciesIdentifier } ;
 	}
 
-	private static Map<String, Set<String>> getOrthologMappedProteins(String pathToOrthologMappingFile, boolean allowBidirectionalMapping, String speciesName)
+	private Map<String, Set<String>> getOrthologMappedProteins(String pathToOrthologMappingFile, boolean allowBidirectionalMapping, String speciesName)
 	{
 		Map<String, Set<String>> otherSpeciesMappedToHuman = new HashMap<>();
 		try(BufferedReader br = new BufferedReader(new FileReader(pathToOrthologMappingFile)))
@@ -282,12 +279,14 @@ public class MapToHuman
 				// Only the first two parts are useful, and only if they contain HUMAN or YEAST (or whatever speciesName is).
 				String species1 = (parts[0].split("\\|"))[0];
 				String species2 = (parts[1].split("\\|"))[0];
+				// TODO: Generate new mappings based on gene common families. Maybe store these in a separate mapping structure so
+				// that they can be marked as originating from a *generated* mapping rather than a *known* mapping.
 				String geneFamily = parts[4];
-				boolean lineIsUseful = !species1.equals(species2) && ((allowBidirectionalMapping && species1.equals(HUMAN) && species2.equals(speciesName))
-																	|| (species1.equals(speciesName) && species2.equals(HUMAN)));
+				boolean lineIsUseful = !species1.equals(species2) && ((allowBidirectionalMapping && species1.equals(Species.HUMAN.toString()) && species2.equals(speciesName))
+																	|| (species1.equals(speciesName) && species2.equals(Species.HUMAN.toString())));
 				if (lineIsUseful)
 				{
-					String[] extractedIdentifiers = extractIdentifiersFromPantherLine(parts, species1);
+					String[] extractedIdentifiers = this.extractIdentifiersFromPantherLine(parts, species1);
 					String humanIdentifier = extractedIdentifiers[0];
 					String otherSpeciesIdentifier = extractedIdentifiers[1];
 					Set<String> identifiers;
@@ -493,7 +492,7 @@ public class MapToHuman
 		return proteinAsUniProt;
 	}
 
-	private static String extractUniprotIdentifier(String[] humanParts)
+	private String extractUniprotIdentifier(String[] humanParts)
 	{
 		String identifier = null;
 		String s;
