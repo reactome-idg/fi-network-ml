@@ -37,30 +37,8 @@ public class MapToHuman
 	private static final String PPIS_MAPPED_TO_HUMAN_FILE = "PPIS_mapped_to_human.txt";
 
 	private String outputPath = "";
-	private static URI uniprotMappingServiceURI = null;
 
 	private String stringDBSpeciesCode;
-
-	public MapToHuman() throws URISyntaxException
-	{
-		try
-		{
-			// uniprotMappingServiceURI only needs to be initialized once. But because new URI could throw URISyntaxException,
-			// it cannot be initialized in a static initializer.
-			synchronized (this)
-			{
-				if (uniprotMappingServiceURI == null)
-				{
-					uniprotMappingServiceURI = new URI("https://www.uniprot.org/uploadlists/");
-				}
-			}
-		}
-		catch (URISyntaxException e)
-		{
-			e.printStackTrace();
-			throw e;
-		}
-	}
 
 	public static void main(String[] args) throws IOException, URISyntaxException
 	{
