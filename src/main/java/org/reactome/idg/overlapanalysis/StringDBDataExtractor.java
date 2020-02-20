@@ -52,8 +52,8 @@ public class StringDBDataExtractor extends DataExtractor
 				int dbScore = Integer.parseInt(record.get("database"));
 				if (experiments > 0/* && dbScore > 0*/)
 				{
-					String protein1 = record.get("protein1").replace("9606.","");
-					String protein2 = record.get("protein2").replace("9606.","");
+					String protein1 = record.get("protein1")/*.replace("9606.","")*/;
+					String protein2 = record.get("protein2")/*.replace("9606.","")*/;
 
 					interactionsWithExperiments.add(putProteinsInOrder(protein1, protein2));
 
@@ -84,8 +84,8 @@ public class StringDBDataExtractor extends DataExtractor
 				{
 					if (record.get("mode").equals("binding"))
 					{
-						String protein1 = record.get("item_id_a").replace("9606.", "");
-						String protein2 = record.get("item_id_b").replace("9606.", "");
+						String protein1 = record.get("item_id_a")/*.replace("9606.", "")*/;
+						String protein2 = record.get("item_id_b")/*.replace("9606.", "")*/;
 
 						if (interactionsWithExperiments.contains(putProteinsInOrder(protein1, protein2)))
 						{
