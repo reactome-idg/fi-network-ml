@@ -21,24 +21,14 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import org.reactome.idg.util.Species;
+
 public class MapToHuman
 {
 	private static final Logger logger = LogManager.getLogger(MapToHuman.class);
 	private static final String PATH_TO_DATA_FILES = Paths.get("src","main","resources","data").toString() + File.separator;
 	private Set<String> unmappedProteins = new TreeSet<>();
-	enum Species
-	{
-		YEAST(4932), HUMAN(9606), SCHPO(4896);
-		private int speciesCode;
-		Species(int code)
-		{
-			this.speciesCode = code;
-		}
-		public int getSpeciesCode()
-		{
-			return this.speciesCode;
-		}
-	}
+
 
 	private String outputPath = "";
 
