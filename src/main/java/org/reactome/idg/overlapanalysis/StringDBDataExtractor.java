@@ -52,8 +52,8 @@ public class StringDBDataExtractor extends DataExtractor
 				int dbScore = Integer.parseInt(record.get("database"));
 				if (experiments > 0/* && dbScore > 0*/)
 				{
-					String protein1 = record.get("protein1")/*.replace("9606.","")*/;
-					String protein2 = record.get("protein2")/*.replace("9606.","")*/;
+					String protein1 = record.get("protein1");
+					String protein2 = record.get("protein2");
 
 					interactionsWithExperiments.add(putProteinsInOrder(protein1, protein2));
 
@@ -65,6 +65,7 @@ public class StringDBDataExtractor extends DataExtractor
 				}
 			}
 		}
+		// TODO: the MapToHuman project tries to get the same data from StringDB files, so: extract the common code to a new "StringDBUtilies" class.
 		System.out.println(interactionsWithExperiments.size() + " interactions had experiments. " + experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0.");
 		Set<String> identifiersToMapToUniprot = new HashSet<>();
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
@@ -84,8 +85,8 @@ public class StringDBDataExtractor extends DataExtractor
 				{
 					if (record.get("mode").equals("binding"))
 					{
-						String protein1 = record.get("item_id_a")/*.replace("9606.", "")*/;
-						String protein2 = record.get("item_id_b")/*.replace("9606.", "")*/;
+						String protein1 = record.get("item_id_a");
+						String protein2 = record.get("item_id_b");
 
 						if (interactionsWithExperiments.contains(putProteinsInOrder(protein1, protein2)))
 						{
@@ -161,6 +162,7 @@ public class StringDBDataExtractor extends DataExtractor
 
 	private Map<String, Set<String>> getStringDBToUniProtMappings(String pathToMappings, Species species)
 	{
+		// TODO: Move this method to a StringDBUtilies class
 		Map<String, Set<String>> mappings = new HashMap<>();
 		// StringDB has a mappings file that shows StringDB -> UniProt
 		try(BufferedReader br = new BufferedReader(new FileReader(pathToMappings)))

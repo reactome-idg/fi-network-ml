@@ -115,11 +115,10 @@ public class OverlapAnalysis
 		TreeMap<String, Set<String>> sorted = new TreeMap<>();
 
 		//Now, sort the array in order of most overlap to least. Sort by length of the VALUE that the keys point to.
-//		interactionsToDBLists.keySet().stream().forEach(key -> sorted.computeIfAbsent(setToString.apply(interactionsToDBLists.get(key)), k -> new ArrayList<>()).add(key) );
 
 		// For each interaction, add to "sorted tree...
 		interactionsToDBLists.keySet().stream().forEach( interaction -> {
-//			String db = setToString.apply(interactionsToDBLists.get(interaction));
+
 			String db = (interactionsToDBLists.get(interaction)).stream().sorted().reduce("", String::concat);
 			Set<String> tmpSet;
 			if (sorted.containsKey(db))
@@ -178,8 +177,7 @@ public class OverlapAnalysis
 			try(CSVParser parser = new CSVParser(reader, format);)
 			{
 				List<CSVRecord> records = parser.getRecords();
-//				int totalNumRecords = records.size();
-//				int unMappedCount = 0;
+
 				for (CSVRecord record : records)
 				{
 					String interactor1 = record.get("# Interactor 1 uniprot id");
