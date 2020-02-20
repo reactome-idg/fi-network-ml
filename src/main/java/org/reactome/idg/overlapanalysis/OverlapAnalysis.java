@@ -46,7 +46,6 @@ public class OverlapAnalysis
 	public static void main(String[] args) throws IOException, URISyntaxException
 	{
 		System.out.println("Extracting interactions from various sources...");
-//		extractFromStringDBFile();
 //		MatrixDBDataExtractor.extractFromMatrixDBFile();
 //		BioPlexDataExtractor.extractFromBioPlexFile();
 		BioGridDataExtractor bioGridExtractor = new BioGridDataExtractor();

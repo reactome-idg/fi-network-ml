@@ -14,12 +14,12 @@ import org.apache.commons.csv.CSVRecord;
 
 public class BioPlexDataExtractor extends DataExtractor
 {
-	private static final String BIOPLEX_PPIS_FILE = "bioplex-ppis.txt";
+	private static final String BIOPLEX_PPIS_FILE = "output/overlaps/bioplex-ppis.txt";
 	public static void extractFromBioPlexFile() throws FileNotFoundException, IOException
 	{
 		System.out.println("Extracting BioPlex Data...");
-		String bioPlexV3File1 = "BioPlex_2.3_interactionList.tsv";
-		String bioPlexV3File2 = "BioPlex_unpublishedInteractions_May_2019.tsv";
+		String bioPlexV3File1 = "src/main/resources/data/BioPlex_2.3_interactionList.tsv";
+		String bioPlexV3File2 = "src/main/resources/data/BioPlex_unpublishedInteractions_May_2019.tsv";
 		Set<String> interactors = new HashSet<>();
 		try(FileReader reader1 = new FileReader(bioPlexV3File1);
 			FileReader reader2 = new FileReader(bioPlexV3File2);

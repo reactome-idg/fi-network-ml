@@ -15,8 +15,8 @@ import org.apache.commons.csv.CSVRecord;
 public class MatrixDBDataExtractor  extends DataExtractor
 {
 	private static final String HOMO_SAPIENS = "Homo sapiens";
-	private static final String matrixDBFile = "matrixdb_CORE.tab";
-	private static final String MATRIXDB_PPIS_FILE = "matrixdb-ppis.txt";
+	private static final String matrixDBFile = "src/main/resources/data/matrixdb_CORE.tab";
+	private static final String MATRIXDB_PPIS_FILE = "output/overlaps/matrixdb-ppis.txt";
 
 	public static void extractFromMatrixDBFile() throws FileNotFoundException, IOException
 	{
