@@ -19,7 +19,7 @@ import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class BioGridDataExtractor extends DataExtractor
 {
-	private static final String BIOGRID_PPIS_FILE = "biogrid-ppis.txt";
+	private static final String BIOGRID_PPIS_FILE = "output/overlaps/biogrid-ppis.txt";
 
 	public void extractFromBioGridFile() throws FileNotFoundException, IOException, URISyntaxException
 	{
@@ -68,21 +68,7 @@ public class BioGridDataExtractor extends DataExtractor
 							String entrezGeneB = record.get("Entrez Gene Interactor B");
 							identifiersToMapToUniprot.add(entrezGeneA);
 							identifiersToMapToUniprot.add(entrezGeneB);
-//							if (!entrezGene2UniProt.containsKey(entrezGeneA))
-//							{
-//								entrezGene2UniProt.put(entrezGeneA, EMPTY_TOKEN);
-//								unMappedCount++;
-//							}
-//							if (!entrezGene2UniProt.containsKey(entrezGeneB))
-//							{
-//								entrezGene2UniProt.put(entrezGeneB, EMPTY_TOKEN);
-//								unMappedCount++;
-//							}
-//							if (unMappedCount % 5000 == 0 || record.getRecordNumber() >= totalNumRecords)
-//							{
-//								unMappedCount = 0;
-//								getMappingsFromUniProt(entrezGene2UniProt, UniprotDB.Entrez_Gene);
-//							}
+
 							interactors.add(entrezGeneA + "|" + entrezGeneB);
 						}
 
@@ -110,24 +96,18 @@ public class BioGridDataExtractor extends DataExtractor
 				{
 					mappedCount++;
 					interactorSet.add(putProteinsInOrder(mappedInteractorAId, mappedInteractorBId));
-//					writer.write( putProteinsInOrder(mappedInteractorAId, mappedInteractorBId)+"\n" );
 				}
 				else
 				{
 					unmappedCount ++;
 					if (mappedInteractorAId==null || mappedInteractorAId.equals(EMPTY_TOKEN))
 					{
-//						unmappedWriter.write(interactorA + "\n");
 						unmappedIdentifiers.add(interactorA);
-//						System.out.println("Could not map interactor " + interactorA + " to uniprot, interactions that include it will NOT be in the overlap analysis.");
 					}
 					if (mappedInteractorBId==null || mappedInteractorBId.equals(EMPTY_TOKEN))
 					{
-//						unmappedWriter.write(interactorB + "\n");
 						unmappedIdentifiers.add(interactorB);
-//						System.out.println("Could not map interactor " + interactorB + " to uniprot, interactions that include it will NOT be in the overlap analysis.");
 					}
-
 				}
 			}
 			for (String interactor : interactorSet)

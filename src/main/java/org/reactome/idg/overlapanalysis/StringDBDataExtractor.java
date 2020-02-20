@@ -24,7 +24,7 @@ import org.reactome.idg.util.UniprotFileRetriever.UniprotDB;
 
 public class StringDBDataExtractor extends DataExtractor
 {
-	private static final String STRING_DB_PPIS_FILE = "string-db-ppis.txt";
+	private static final String STRING_DB_PPIS_FILE = "output/overlaps/string-db-ppis.txt";
 	private static final Logger logger = LogManager.getLogger(StringDBDataExtractor.class);
 
 	public void extractFromStringDBFile() throws IOException, FileNotFoundException, URISyntaxException
@@ -102,25 +102,12 @@ public class StringDBDataExtractor extends DataExtractor
 								unMappedCount++;
 							}
 
-//							// every 1000 proteins, we'll get a mapping from UniProt;
-//							if (unMappedCount % 5000 == 0 || record.getRecordNumber() >= totalNumRecords)
-//							{
-//								unMappedCount = 0;
-//								getMappingsFromUniProt(ensembl2UniprotMappings, UniprotDB.ENSEMBLProtein);
-//							}
-
-//							if (protein1.equals("ENSP00000243344") || protein2.equals("ENSP00000243344"))
-//							{
-//								System.out.println("ENSP00000243344 has been found!");
-//							}
-
 							identifiersToMapToUniprot.add(protein1);
 							identifiersToMapToUniprot.add(protein2);
 							interactors.add(protein1 + "|" + protein2);
 
 							numBinding++;
 						}
-//						writer.write( putProteinsInOrder(protein1.replace("9606.", ""), protein2.replace("9606.", ""))+"\n" );
 					}
 				}
 				System.out.println("Number of \"binding\" StringDB interactions: "+numBinding + "; out of a total of "+parser.getRecordNumber());
@@ -140,11 +127,6 @@ public class StringDBDataExtractor extends DataExtractor
 				String mappedInteractorAId = ensembl2UniprotMappings.get(interactorA);
 				String mappedInteractorBId = ensembl2UniprotMappings.get(interactorB);
 
-//				if (interactorA.equals("ENSP00000243344") || interactorB.equals("ENSP00000243344"))
-//				{
-//					System.out.println("Interaction containing ENSP00000243344 was found. Mapped interactors: A: " + mappedInteractorAId + " B: " + mappedInteractorBId);
-//				}
-
 				if (mappedInteractorAId != null && mappedInteractorBId!=null &&
 					!mappedInteractorAId.equals(EMPTY_TOKEN) && !mappedInteractorBId.equals(EMPTY_TOKEN))
 				{
@@ -155,18 +137,14 @@ public class StringDBDataExtractor extends DataExtractor
 				{
 					if (mappedInteractorAId == null)
 					{
-//						unmappedWriter.write(interactorA + "\n");
 						unmappedIdentifiers.add(interactorA);
 						unmappedInteractorsCount++;
 					}
 					if (mappedInteractorBId == null)
 					{
-//						unmappedWriter.write(interactorB + "\n");
 						unmappedIdentifiers.add(interactorB);
 						unmappedInteractorsCount++;
 					}
-//					unmappedWriter.write(interactorA + "\t" + interactorB + "\n");
-//					unmappedInteractorsCount++;
 				}
 			}
 			for (String interactor : interactorSet)
