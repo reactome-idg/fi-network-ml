@@ -44,7 +44,7 @@ public class StringDBDataExtractor extends DataExtractor
 										.withDelimiter(' ')
 										.withFirstRecordAsHeader());)
 		{
-			List<CSVRecord> records = parser.getRecords();
+			List<CSVRecord> records = parser.getRecords(); // Needs heap size >= 12 G. find a better way to do this...
 			System.out.println(records.size() + " records will be parsed.");
 			for (CSVRecord  record : records)
 			{
