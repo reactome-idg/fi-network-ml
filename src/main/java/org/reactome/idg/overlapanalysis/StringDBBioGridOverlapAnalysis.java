@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -134,12 +135,12 @@ public class StringDBBioGridOverlapAnalysis
 			FileWriter stringDBRemainderWriter = new FileWriter(pathToOutput + "StringDB-only-PPIs.tsv");
 			FileWriter bioGridRemainderWriter = new FileWriter(pathToOutput + "BioGrid-only-PPIs.tsv"))
 		{
-			for (String ppi : overlap)
+			for (String ppi : overlap.stream().sorted().collect(Collectors.toList()))
 			{
 				overlapWriter.write(ppi+"\n");
 			}
 			// Now write the StringDB PPIs that are not in overlap
-			for (String ppi : bindingInteractionsWithExperiments)
+			for (String ppi : bindingInteractionsWithExperiments.stream().sorted().collect(Collectors.toList()))
 			{
 				if (!overlap.contains(ppi))
 				{
@@ -147,7 +148,7 @@ public class StringDBBioGridOverlapAnalysis
 				}
 			}
 			// Now write the BioGrid PPIs that are not in overlap
-			for (String ppi : mappedPPIsFromBioGrid)
+			for (String ppi : mappedPPIsFromBioGrid.stream().sorted().collect(Collectors.toList()))
 			{
 				if (!overlap.contains(ppi))
 				{
