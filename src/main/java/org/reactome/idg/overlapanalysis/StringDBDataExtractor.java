@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -34,7 +35,7 @@ public class StringDBDataExtractor extends DataExtractor
 		List<String> interactors = new ArrayList<>();
 		int mappedCount = 0;
 		int unMappedCount = 0;
-		int experimentsAndDBScore = 0;
+		AtomicInteger experimentsAndDBScore = new AtomicInteger(0);
 		String stringDBProteinActionsFile = "src/main/resources/data/9606.protein.actions.v11.0.txt";
 		String stringDBProteinLinksFile = "src/main/resources/data/9606.protein.links.full.v11.0.txt";
 		Set<String> interactionsWithExperiments = new HashSet<>();
@@ -44,12 +45,9 @@ public class StringDBDataExtractor extends DataExtractor
 										.withDelimiter(' ')
 										.withFirstRecordAsHeader());)
 		{
-			List<CSVRecord> records = parser.getRecords(); // Needs heap size >= 12 G. find a better way to do this...
-			System.out.println(records.size() + " records will be parsed.");
-			for (CSVRecord  record : records)
-			{
+			parser.forEach( record -> {
 				int experiments = Integer.parseInt(record.get("experiments"));
-				int dbScore = Integer.parseInt(record.get("database"));
+//				int dbScore = Integer.parseInt(record.get("database"));
 				if (experiments > 0/* && dbScore > 0*/)
 				{
 					String protein1 = record.get("protein1");
@@ -60,10 +58,11 @@ public class StringDBDataExtractor extends DataExtractor
 					// Guanming was curious about this:
 					if (Integer.parseInt(record.get("database")) > 0)
 					{
-						experimentsAndDBScore ++;
+						experimentsAndDBScore.incrementAndGet();
 					}
 				}
-			}
+			});
+
 		}
 		// TODO: the MapToHuman project tries to get the same data from StringDB files, so: extract the common code to a new "StringDBUtilies" class.
 		System.out.println(interactionsWithExperiments.size() + " interactions had experiments. " + experimentsAndDBScore + " had DB Score > 0 AND Experiments Score > 0.");
