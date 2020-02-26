@@ -24,7 +24,7 @@ public class BioGridDataExtractor extends DataExtractor
 	public void extractFromBioGridFile() throws FileNotFoundException, IOException, URISyntaxException
 	{
 		System.out.println("Extracting BioGrid Data...");
-		String bioGridFile = "src/main/resources/data/BIOGRID-ORGANISM/BIOGRID-ORGANISM-Homo_sapiens-3.5.178.tab2.txt";
+		String bioGridFile = "src/main/resources/data/BIOGRID-ORGANISM/BIOGRID-ORGANISM-Homo_sapiens-3.5.181.tab2.txt";
 //		String bioGridFile = "BIOGRID-ALL-3.5.178.tab2.txt";
 		List<String> interactors = new ArrayList<>();
 		Map<String, String> entrezGene2UniProt = new HashMap<>();
