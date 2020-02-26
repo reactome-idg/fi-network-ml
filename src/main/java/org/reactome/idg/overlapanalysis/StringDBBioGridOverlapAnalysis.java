@@ -29,6 +29,7 @@ public class StringDBBioGridOverlapAnalysis
 		String stringDBProteinActionsFile = pathToData + "9606.protein.actions.v11.0.txt";
 		String stringDBProteinLinksFile = pathToData + "9606.protein.links.full.v11.0.txt";
 		String stringToEntrezGeneMapping = pathToData + "all_organisms.entrez_2_string.2018.tsv";
+		String stringToUniProtMapping = pathToData + "all_organisms.uniprot_2_string.2018.tsv";
 		String bioGridPPIFile = pathToData + "BIOGRID-ORGANISM/BIOGRID-ORGANISM-Homo_sapiens-3.5.181.tab2.txt";
 		String humanOranismTaxonID = "9606";
 		// Step 1: get PPIs from String
@@ -131,20 +132,48 @@ public class StringDBBioGridOverlapAnalysis
 		Set<String> overlap = new HashSet<>(bindingInteractionsWithExperiments);
 		overlap.retainAll(mappedPPIsFromBioGrid);
 		logger.info("Size of StringDB/BioGrid PPI Overlap: {}", overlap.size());
+
+		// Before writing to output, load the UniProt mapping. We'll use that to map to UniProt when writing the data to file
+		Map<String, String> stringToUniProt = new HashMap<>();
+		try(FileReader reader = new FileReader(stringToUniProtMapping))
+		{
+			CSVFormat format = CSVFormat.DEFAULT.withDelimiter('\t');
+			try(CSVParser parser = new CSVParser(reader, format);)
+			{
+				parser.forEach( record ->
+				{
+					if (record.get(0).equals(humanOranismTaxonID))
+					{
+						String uniprot = record.get(1);
+						String stringDBID = record.get(2);
+						String[] uniprotParts = uniprot.split("\\|");
+						String uniprotAccession = uniprotParts[0];
+						stringToUniProt.put(stringDBID, uniprotAccession);
+					}
+				});
+			}
+		}
+		catch (IOException e)
+		{
+			logger.error("File error!", e);
+		}
+
 		try(FileWriter overlapWriter = new FileWriter(pathToOutput + "StringDB-BioGrid-PPIoverlap.tsv");
 			FileWriter stringDBRemainderWriter = new FileWriter(pathToOutput + "StringDB-only-PPIs.tsv");
-			FileWriter bioGridRemainderWriter = new FileWriter(pathToOutput + "BioGrid-only-PPIs.tsv"))
+			FileWriter bioGridRemainderWriter = new FileWriter(pathToOutput + "BioGrid-only-PPIs.tsv");)
 		{
 			for (String ppi : overlap.stream().sorted().collect(Collectors.toList()))
 			{
-				overlapWriter.write(ppi+"\n");
+				String[] parts = ppi.split("\\t");
+				overlapWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
 			}
 			// Now write the StringDB PPIs that are not in overlap
 			for (String ppi : bindingInteractionsWithExperiments.stream().sorted().collect(Collectors.toList()))
 			{
 				if (!overlap.contains(ppi))
 				{
-					stringDBRemainderWriter.write(ppi + "\n");
+					String[] parts = ppi.split("\\t");
+					stringDBRemainderWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
 				}
 			}
 			// Now write the BioGrid PPIs that are not in overlap
@@ -152,7 +181,8 @@ public class StringDBBioGridOverlapAnalysis
 			{
 				if (!overlap.contains(ppi))
 				{
-					bioGridRemainderWriter.write(ppi + "\n");
+					String[] parts = ppi.split("\\t");
+					bioGridRemainderWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
 				}
 			}
 		}
