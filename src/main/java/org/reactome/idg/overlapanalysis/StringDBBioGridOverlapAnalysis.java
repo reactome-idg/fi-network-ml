@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
@@ -41,91 +42,60 @@ public class StringDBBioGridOverlapAnalysis
 		logger.info("Number of PPIs from StringDB: {}", bindingInteractionsWithExperiments.size());
 		// Get BioGrid data
 		Set<String> ppisFromBioGrid = new HashSet<>();
-		try(FileReader reader = new FileReader(bioGridPPIFile))
+		ppisFromBioGrid = getBioGridPPIs(bioGridPPIFile, humanOranismTaxonID);
+		logger.info("Number of PPIs from BioGrid: {}", ppisFromBioGrid.size());
+		// Map the BioGrid data to StringDB using StringDB's EntrezGene<->StringDB mapping file.
+		final Map<String, String> entrezGeneToString = mapBioGridToStringDB(stringToEntrezGeneMapping, humanOranismTaxonID);
+		logger.info("Number of EntrezGene -> StringDB identifier mappings: {}", entrezGeneToString.size());
+//		AtomicInteger selfInteractionCount = new AtomicInteger(0);
+		Set<String> mappedPPIsFromBioGrid = new HashSet<>();
+		try(FileWriter failedMappingWriter = new FileWriter(pathToOutput + "failedMappingsFromBioGrid.txt"))
 		{
-			CSVFormat format = CSVFormat.DEFAULT
-					.withDelimiter('\t')
-					.withFirstRecordAsHeader();
-			try(CSVParser parser = new CSVParser(reader, format);)
-			{
-				List<CSVRecord> records = parser.getRecords();
-				int totalNumRecords = records.size();
-				int unMappedCount = 0;
-				int recordsWithNonHumanInteractor = 0;
-				for (CSVRecord record : records)
+			// Now need to update the BioGrid PPIs
+
+			ppisFromBioGrid.forEach(ppi -> {
+				String[] parts = ppi.split("\\t");
+				String mapped1 = entrezGeneToString.get(parts[0]);
+				String mapped2 = entrezGeneToString.get(parts[1]);
+
+				if (mapped1 != null && mapped2 != null)
 				{
-					String organismA = record.get("Organism Interactor A");
-					String organismB = record.get("Organism Interactor B");
-
-
-					if (!organismA.trim().equals(humanOranismTaxonID) || !organismB.trim().equals(humanOranismTaxonID))
+					if (!mapped1.equals(mapped2))
 					{
-						recordsWithNonHumanInteractor++;
+						mappedPPIsFromBioGrid.add(StringDBUtil.putProteinsInOrder(mapped1, mapped2));
 					}
-
-					if (organismA != null && organismB != null
-						&& organismA.trim().equals(humanOranismTaxonID)
-						&& organismB.trim().equals(humanOranismTaxonID))
+//					else
+//					{
+//						// self-interaction
+//						selfInteractionCount.incrementAndGet();
+//					}
+				}
+				else
+				{
+					try
 					{
-						String score = record.get("Score");
-//						if (score != null && !score.equals("-") && Double.parseDouble(score) > 0.75d)
+						//else mapping fail.
+						if (mapped1 == null)
 						{
-							String entrezGeneA = record.get("Entrez Gene Interactor A");
-							String entrezGeneB = record.get("Entrez Gene Interactor B");
-
-
-							ppisFromBioGrid.add(StringDBUtil.putProteinsInOrder(entrezGeneA, entrezGeneB));
+							failedMappingWriter.write(parts[0] + "\n");
 						}
-
+						if (mapped2 == null)
+						{
+							failedMappingWriter.write(parts[1] + "\n");
+						}
+					}
+					catch (IOException e)
+					{
+						logger.error(e);
 					}
 				}
-			}
+			});
 		}
 		catch (IOException e)
 		{
 			logger.error("File error!", e);
 		}
-		logger.info("Number of PPIs from BioGrid: {}", ppisFromBioGrid.size());
-		Map<String, String> entrezGeneToString = new HashMap<>();
-		// Map the BioGrid data to StringDB using StringDB's EntrezGene<->StringDB mapping file.
-		try(FileReader reader = new FileReader(stringToEntrezGeneMapping))
-		{
-			CSVFormat format = CSVFormat.DEFAULT.withCommentMarker('#').withDelimiter('\t');
-			try(CSVParser parser = new CSVParser(reader, format);)
-			{
-				parser.forEach( record -> {
-					if (record.get(0).equals(humanOranismTaxonID))
-					{
-						String entrezGeneID = record.get(1);
-						String stringDBID = record.get(2);
-						if (entrezGeneID != null && stringDBID != null)
-						{
-							entrezGeneToString.put(entrezGeneID, stringDBID);
-						}
-					}
-				});
-			}
-		}
-		catch (IOException e)
-		{
-			logger.error("File error!", e);
-		}
-		logger.info("Number of EntrezGene -> StringDB identifier mappings: {}", entrezGeneToString.size());
-
-
-		// Now need to update the BioGrid PPIs
-		Set<String> mappedPPIsFromBioGrid = new HashSet<>();
-		ppisFromBioGrid.forEach(ppi -> {
-			String[] parts = ppi.split("\\t");
-			String mapped1 = entrezGeneToString.get(parts[0]);
-			String mapped2 = entrezGeneToString.get(parts[1]);
-
-			if ((mapped1 != null && mapped2 != null) &&
-				(!mapped1.equals(mapped2)))
-			{
-				mappedPPIsFromBioGrid.add(StringDBUtil.putProteinsInOrder(mapped1, mapped2));
-			}
-		});
+//		logger.info("Number of self-interactions from BioGrid ignored: {}", selfInteractionCount);
 		logger.info("Number of MAPPED (to StringDB) BioGrid PPIs: {}", mappedPPIsFromBioGrid.size());
 
 		// Now calculate overlap.
@@ -157,23 +127,22 @@ public class StringDBBioGridOverlapAnalysis
 		{
 			logger.error("File error!", e);
 		}
-
+		logger.info("{} StringDB-to-UniProt mappings loaded", stringToUniProt.size());
 		try(FileWriter overlapWriter = new FileWriter(pathToOutput + "StringDB-BioGrid-PPIoverlap.tsv");
 			FileWriter stringDBRemainderWriter = new FileWriter(pathToOutput + "StringDB-only-PPIs.tsv");
-			FileWriter bioGridRemainderWriter = new FileWriter(pathToOutput + "BioGrid-only-PPIs.tsv");)
+			FileWriter bioGridRemainderWriter = new FileWriter(pathToOutput + "BioGrid-only-PPIs.tsv");
+			FileWriter stringToUniProtMappingFailure = new FileWriter(pathToOutput + "stringToUniprotMappingFailure.txt"))
 		{
 			for (String ppi : overlap.stream().sorted().collect(Collectors.toList()))
 			{
-				String[] parts = ppi.split("\\t");
-				overlapWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
+				processPPI(stringToUniProt, overlapWriter, stringToUniProtMappingFailure, ppi);
 			}
 			// Now write the StringDB PPIs that are not in overlap
 			for (String ppi : bindingInteractionsWithExperiments.stream().sorted().collect(Collectors.toList()))
 			{
 				if (!overlap.contains(ppi))
 				{
-					String[] parts = ppi.split("\\t");
-					stringDBRemainderWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
+					processPPI(stringToUniProt, stringDBRemainderWriter, stringToUniProtMappingFailure, ppi);
 				}
 			}
 			// Now write the BioGrid PPIs that are not in overlap
@@ -181,14 +150,113 @@ public class StringDBBioGridOverlapAnalysis
 			{
 				if (!overlap.contains(ppi))
 				{
-					String[] parts = ppi.split("\\t");
-					bioGridRemainderWriter.write(stringToUniProt.get(parts[0]) + "\t" + stringToUniProt.get(parts[1]) +"\n");
+					processPPI(stringToUniProt, stringDBRemainderWriter, stringToUniProtMappingFailure, ppi);
+				}
+
+			}
+		}
+		catch (IOException e)
+		{
+			logger.error("File error!", e);
+		}
+	}
+
+	private static Map<String, String> mapBioGridToStringDB(String stringToEntrezGeneMapping, String humanOranismTaxonID)
+	{
+		Map<String, String> entrezGeneToString = new HashMap<>();
+		try(FileReader reader = new FileReader(stringToEntrezGeneMapping))
+		{
+			CSVFormat format = CSVFormat.DEFAULT.withCommentMarker('#').withDelimiter('\t');
+			try(CSVParser parser = new CSVParser(reader, format);)
+			{
+				parser.forEach( record -> {
+					if (record.get(0).equals(humanOranismTaxonID))
+					{
+						String entrezGeneID = record.get(1);
+						String stringDBID = record.get(2);
+						if (entrezGeneID != null && stringDBID != null)
+						{
+							entrezGeneToString.put(entrezGeneID, stringDBID);
+						}
+					}
+				});
+			}
+		}
+		catch (IOException e)
+		{
+			logger.error("File error!", e);
+		}
+		return entrezGeneToString;
+	}
+
+	private static Set<String> getBioGridPPIs(String bioGridPPIFile, String humanOranismTaxonID)
+	{
+		Set<String> ppisFromBioGrid = new HashSet<>();
+		try(FileReader reader = new FileReader(bioGridPPIFile))
+		{
+			CSVFormat format = CSVFormat.DEFAULT
+					.withDelimiter('\t')
+					.withFirstRecordAsHeader();
+			try(CSVParser parser = new CSVParser(reader, format);)
+			{
+				List<CSVRecord> records = parser.getRecords();
+//				int totalNumRecords = records.size();
+//				int unMappedCount = 0;
+//				int recordsWithNonHumanInteractor = 0;
+				for (CSVRecord record : records)
+				{
+					String organismA = record.get("Organism Interactor A");
+					String organismB = record.get("Organism Interactor B");
+//					if (!organismA.trim().equals(humanOranismTaxonID) || !organismB.trim().equals(humanOranismTaxonID))
+//					{
+//						recordsWithNonHumanInteractor++;
+//					}
+					if (organismA != null && organismB != null
+						&& organismA.trim().equals(humanOranismTaxonID)
+						&& organismB.trim().equals(humanOranismTaxonID))
+					{
+//						String score = record.get("Score");
+//						if (score != null && !score.equals("-") && Double.parseDouble(score) > 0.75d)
+						{
+							String entrezGeneA = record.get("Entrez Gene Interactor A");
+							String entrezGeneB = record.get("Entrez Gene Interactor B");
+
+
+							ppisFromBioGrid.add(StringDBUtil.putProteinsInOrder(entrezGeneA, entrezGeneB));
+						}
+
+					}
 				}
 			}
 		}
 		catch (IOException e)
 		{
 			logger.error("File error!", e);
+		}
+		return ppisFromBioGrid;
+	}
+
+	private static void processPPI(Map<String, String> stringToUniProtMapping, FileWriter mainWriter, FileWriter mappingFailureWriter, String ppi) throws IOException
+	{
+		String[] parts = ppi.split("\\t");
+		final String p1 = parts[0];
+		final String p2 = parts[1];
+		final String mappedP1 = stringToUniProtMapping.get(p1);
+		final String mappedP2 = stringToUniProtMapping.get(p2);
+		if (stringToUniProtMapping.get(p1) != null && stringToUniProtMapping.get(p2) != null)
+		{
+			mainWriter.write(mappedP1 + "\t" + mappedP2 +"\n");
+		}
+		else
+		{
+			if (mappedP1 == null)
+			{
+				mappingFailureWriter.write(p1 + "\n");
+			}
+			if (mappedP2 == null)
+			{
+				mappingFailureWriter.write(p2 + "\n");
+			}
 		}
 	}
 
