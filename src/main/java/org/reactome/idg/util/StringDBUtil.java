@@ -7,17 +7,23 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class StringDBUtil
 {
+	private static Logger logger = LogManager.getLogger();
+
 	private StringDBUtil() {}
 
 	public static Set<String> getBindingPPIs(String stringDBProteinActionsFile, Set<String> interactionsWithExperiments)
 	{
+		int selfInteractions = 0;
 		Set<String> interactors = new HashSet<>();
 		try(FileReader reader = new FileReader(stringDBProteinActionsFile);
 //				FileWriter writer = new FileWriter(STRING_DB_PPIS_FILE);
@@ -60,6 +66,10 @@ public class StringDBUtil
 
 							numBinding++;
 						}
+						else if (protein1.equals(protein2))
+						{
+							selfInteractions++;
+						}
 					}
 				}
 //				System.out.println("Number of \"binding\" StringDB interactions: "+numBinding + "; out of a total of "+parser.getRecordNumber());
@@ -75,11 +85,13 @@ public class StringDBUtil
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		logger.info("{} StringDB self-interactions skipped.", selfInteractions);
 		return interactors;
 	}
 
 	public static Set<String> getPPIsWithExperiments(int threshold, String stringDBProteinLinksFile)
 	{
+		AtomicInteger selfInteractions = new AtomicInteger(0);
 		Set<String> interactionsWithExperiments = new HashSet<>();
 		try (FileReader reader = new FileReader(stringDBProteinLinksFile);
 				CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT
@@ -93,21 +105,23 @@ public class StringDBUtil
 				{
 					String protein1 = record.get("protein1");
 					String protein2 = record.get("protein2");
-
-					interactionsWithExperiments.add(putProteinsInOrder(protein1, protein2));
-
+					if (!protein1.equals(protein2))
+					{
+						interactionsWithExperiments.add(putProteinsInOrder(protein1, protein2));
+					}
+					else
+					{
+						selfInteractions.incrementAndGet();
+					}
 				}
 			});
 
-		}
-		catch (FileNotFoundException e)
-		{
-			e.printStackTrace();
 		}
 		catch (IOException e)
 		{
 			e.printStackTrace();
 		}
+		logger.info("{} StringDB self-interactions skipped.", selfInteractions);
 		return interactionsWithExperiments;
 	}
 

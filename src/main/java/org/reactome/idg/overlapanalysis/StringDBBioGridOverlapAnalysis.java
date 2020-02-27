@@ -45,57 +45,12 @@ public class StringDBBioGridOverlapAnalysis
 		ppisFromBioGrid = getBioGridPPIs(bioGridPPIFile, humanOranismTaxonID);
 		logger.info("Number of PPIs from BioGrid: {}", ppisFromBioGrid.size());
 		// Map the BioGrid data to StringDB using StringDB's EntrezGene<->StringDB mapping file.
-		final Map<String, String> entrezGeneToString = mapBioGridToStringDB(stringToEntrezGeneMapping, humanOranismTaxonID);
+		final Map<String, Set<String>> entrezGeneToString = mapBioGridToStringDB(stringToEntrezGeneMapping, humanOranismTaxonID);
 		logger.info("Number of EntrezGene -> StringDB identifier mappings: {}", entrezGeneToString.size());
-//		AtomicInteger selfInteractionCount = new AtomicInteger(0);
+
 		Set<String> mappedPPIsFromBioGrid = new HashSet<>();
-		try(FileWriter failedMappingWriter = new FileWriter(pathToOutput + "failedMappingsFromBioGrid.txt"))
-		{
-			// Now need to update the BioGrid PPIs
+		mappedPPIsFromBioGrid = mapBioGridPPIs(ppisFromBioGrid, entrezGeneToString);
 
-			ppisFromBioGrid.forEach(ppi -> {
-				String[] parts = ppi.split("\\t");
-				String mapped1 = entrezGeneToString.get(parts[0]);
-				String mapped2 = entrezGeneToString.get(parts[1]);
-
-				if (mapped1 != null && mapped2 != null)
-				{
-					if (!mapped1.equals(mapped2))
-					{
-						mappedPPIsFromBioGrid.add(StringDBUtil.putProteinsInOrder(mapped1, mapped2));
-					}
-//					else
-//					{
-//						// self-interaction
-//						selfInteractionCount.incrementAndGet();
-//					}
-				}
-				else
-				{
-					try
-					{
-						//else mapping fail.
-						if (mapped1 == null)
-						{
-							failedMappingWriter.write(parts[0] + "\n");
-						}
-						if (mapped2 == null)
-						{
-							failedMappingWriter.write(parts[1] + "\n");
-						}
-					}
-					catch (IOException e)
-					{
-						logger.error(e);
-					}
-				}
-			});
-		}
-		catch (IOException e)
-		{
-			logger.error("File error!", e);
-		}
-//		logger.info("Number of self-interactions from BioGrid ignored: {}", selfInteractionCount);
 		logger.info("Number of MAPPED (to StringDB) BioGrid PPIs: {}", mappedPPIsFromBioGrid.size());
 
 		// Now calculate overlap.
@@ -104,7 +59,7 @@ public class StringDBBioGridOverlapAnalysis
 		logger.info("Size of StringDB/BioGrid PPI Overlap: {}", overlap.size());
 
 		// Before writing to output, load the UniProt mapping. We'll use that to map to UniProt when writing the data to file
-		Map<String, String> stringToUniProt = new HashMap<>();
+		Map<String, Set<String>> stringToUniProt = new HashMap<>();
 		try(FileReader reader = new FileReader(stringToUniProtMapping))
 		{
 			CSVFormat format = CSVFormat.DEFAULT.withDelimiter('\t');
@@ -118,7 +73,9 @@ public class StringDBBioGridOverlapAnalysis
 						String stringDBID = record.get(2);
 						String[] uniprotParts = uniprot.split("\\|");
 						String uniprotAccession = uniprotParts[0];
-						stringToUniProt.put(stringDBID, uniprotAccession);
+						Set<String> uniprots = stringToUniProt.computeIfAbsent(stringDBID, x -> new HashSet<>());
+						uniprots.add(uniprotAccession);
+						stringToUniProt.put(stringDBID, uniprots);
 					}
 				});
 			}
@@ -150,7 +107,7 @@ public class StringDBBioGridOverlapAnalysis
 			{
 				if (!overlap.contains(ppi))
 				{
-					processPPI(stringToUniProt, stringDBRemainderWriter, stringToUniProtMappingFailure, ppi);
+					processPPI(stringToUniProt, bioGridRemainderWriter, stringToUniProtMappingFailure, ppi);
 				}
 
 			}
@@ -161,9 +118,70 @@ public class StringDBBioGridOverlapAnalysis
 		}
 	}
 
-	private static Map<String, String> mapBioGridToStringDB(String stringToEntrezGeneMapping, String humanOranismTaxonID)
+	private static Set<String> mapBioGridPPIs(Set<String> ppisFromBioGrid, final Map<String, Set<String>> entrezGeneToString)
 	{
-		Map<String, String> entrezGeneToString = new HashMap<>();
+		Set<String> mappedPPIsFromBioGrid = new HashSet<>();
+		AtomicInteger selfInteractionCount = new AtomicInteger(0);
+		Set<String> failedMappings = new HashSet<>();
+		// Now need to update the BioGrid PPIs
+		ppisFromBioGrid.forEach(ppi -> {
+			String[] parts = ppi.split("\\t");
+			Set<String> mapped1 = entrezGeneToString.get(parts[0]);
+			Set<String> mapped2 = entrezGeneToString.get(parts[1]);
+
+			if (mapped1 != null && mapped2 != null)
+			{
+				for (String mappedProtein1 : mapped1)
+				{
+					for (String mappedProtein2 : mapped2)
+					{
+						if (mappedProtein1 != null && mappedProtein2 != null)
+						{
+							if (!mappedProtein1.equals(mappedProtein2))
+							{
+								mappedPPIsFromBioGrid.add(StringDBUtil.putProteinsInOrder(mappedProtein1, mappedProtein2));
+							}
+							else
+							{
+								// self-interaction
+								selfInteractionCount.incrementAndGet();
+							}
+						}
+					}
+				}
+			}
+			else
+			{
+				//else mapping fail.
+				if (mapped1 == null)
+				{
+					failedMappings.add(parts[0]);
+				}
+				if (mapped2 == null)
+				{
+					failedMappings.add(parts[1]);
+				}
+			}
+		});
+		try(FileWriter failedMappingWriter = new FileWriter(pathToOutput + "failedMappingsFromBioGrid.txt"))
+		{
+			for (String entrezGeneID : failedMappings)
+			{
+				failedMappingWriter.write(entrezGeneID + "\n");
+			}
+		}
+		catch (IOException e)
+		{
+			logger.error("File error!", e);
+		}
+
+		logger.info("Number of self-interactions (caused by mapping to UniProt) from BioGrid ignored: {}", selfInteractionCount);
+		return mappedPPIsFromBioGrid;
+	}
+
+	private static Map<String, Set<String>> mapBioGridToStringDB(String stringToEntrezGeneMapping, String humanOranismTaxonID)
+	{
+		Map<String, Set<String>> entrezGeneToString = new HashMap<>();
 		try(FileReader reader = new FileReader(stringToEntrezGeneMapping))
 		{
 			CSVFormat format = CSVFormat.DEFAULT.withCommentMarker('#').withDelimiter('\t');
@@ -172,11 +190,18 @@ public class StringDBBioGridOverlapAnalysis
 				parser.forEach( record -> {
 					if (record.get(0).equals(humanOranismTaxonID))
 					{
-						String entrezGeneID = record.get(1);
-						String stringDBID = record.get(2);
-						if (entrezGeneID != null && stringDBID != null)
+						String entrezGeneIDList = record.get(1);
+						String[] entrezGeneIDs = entrezGeneIDList.split("\\|");
+						for (String entrezGeneID : entrezGeneIDs)
 						{
-							entrezGeneToString.put(entrezGeneID, stringDBID);
+							String stringDBID = record.get(2);
+							if (entrezGeneID != null && stringDBID != null)
+							{
+//								entrezGeneToString.put(entrezGeneID, stringDBID);
+								Set<String> stringDBIDs = entrezGeneToString.computeIfAbsent(entrezGeneID, x -> new HashSet<>());
+								stringDBIDs.add(stringDBID);
+								entrezGeneToString.put(entrezGeneID, stringDBIDs);
+							}
 						}
 					}
 				});
@@ -189,8 +214,9 @@ public class StringDBBioGridOverlapAnalysis
 		return entrezGeneToString;
 	}
 
-	private static Set<String> getBioGridPPIs(String bioGridPPIFile, String humanOranismTaxonID)
+	private static Set<String> getBioGridPPIs(String bioGridPPIFile, String oranismTaxonID)
 	{
+		int selfInteractions = 0;
 		Set<String> ppisFromBioGrid = new HashSet<>();
 		try(FileReader reader = new FileReader(bioGridPPIFile))
 		{
@@ -212,8 +238,8 @@ public class StringDBBioGridOverlapAnalysis
 //						recordsWithNonHumanInteractor++;
 //					}
 					if (organismA != null && organismB != null
-						&& organismA.trim().equals(humanOranismTaxonID)
-						&& organismB.trim().equals(humanOranismTaxonID))
+						&& organismA.trim().equals(oranismTaxonID)
+						&& organismB.trim().equals(oranismTaxonID))
 					{
 //						String score = record.get("Score");
 //						if (score != null && !score.equals("-") && Double.parseDouble(score) > 0.75d)
@@ -221,8 +247,15 @@ public class StringDBBioGridOverlapAnalysis
 							String entrezGeneA = record.get("Entrez Gene Interactor A");
 							String entrezGeneB = record.get("Entrez Gene Interactor B");
 
-
-							ppisFromBioGrid.add(StringDBUtil.putProteinsInOrder(entrezGeneA, entrezGeneB));
+							// avoid self-interactions
+							if (!entrezGeneA.equals(entrezGeneB))
+							{
+								ppisFromBioGrid.add(StringDBUtil.putProteinsInOrder(entrezGeneA, entrezGeneB));
+							}
+							else
+							{
+								selfInteractions++;
+							}
 						}
 
 					}
@@ -233,19 +266,26 @@ public class StringDBBioGridOverlapAnalysis
 		{
 			logger.error("File error!", e);
 		}
+		logger.info("{} BioGrid self-interactions skipped.", selfInteractions);
 		return ppisFromBioGrid;
 	}
 
-	private static void processPPI(Map<String, String> stringToUniProtMapping, FileWriter mainWriter, FileWriter mappingFailureWriter, String ppi) throws IOException
+	private static void processPPI(Map<String, Set<String>> stringToUniProtMapping, FileWriter mainWriter, FileWriter mappingFailureWriter, String ppi) throws IOException
 	{
 		String[] parts = ppi.split("\\t");
 		final String p1 = parts[0];
 		final String p2 = parts[1];
-		final String mappedP1 = stringToUniProtMapping.get(p1);
-		final String mappedP2 = stringToUniProtMapping.get(p2);
+		final Set<String> mappedP1 = stringToUniProtMapping.get(p1);
+		final Set<String> mappedP2 = stringToUniProtMapping.get(p2);
 		if (stringToUniProtMapping.get(p1) != null && stringToUniProtMapping.get(p2) != null)
 		{
-			mainWriter.write(mappedP1 + "\t" + mappedP2 +"\n");
+			for (String uniprot1 : mappedP1)
+			{
+				for (String uniprot2 : mappedP2)
+				{
+					mainWriter.write(uniprot1 + "\t" + uniprot2 +"\n");
+				}
+			}
 		}
 		else
 		{
