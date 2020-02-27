@@ -68,8 +68,11 @@ public class BioGridDataExtractor extends DataExtractor
 							String entrezGeneB = record.get("Entrez Gene Interactor B");
 							identifiersToMapToUniprot.add(entrezGeneA);
 							identifiersToMapToUniprot.add(entrezGeneB);
-
-							interactors.add(entrezGeneA + "|" + entrezGeneB);
+							if (!entrezGeneA.equals(entrezGeneB))
+							{
+								// ignore self-interactions.
+								interactors.add(entrezGeneA + "|" + entrezGeneB);
+							}
 						}
 
 					}
