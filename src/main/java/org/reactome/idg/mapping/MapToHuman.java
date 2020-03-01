@@ -20,7 +20,9 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
+import org.reactome.idg.model.Protein;
+import org.reactome.idg.model.ProteinIdentifierType;
+import org.reactome.idg.model.ProteinProteinInteraction;
 import org.reactome.idg.util.Species;
 
 public class MapToHuman
@@ -41,124 +43,9 @@ public class MapToHuman
 		mapper.generateOtherSpeciesToHumanPPIs(Species.SCHPO);
 	}
 
-	enum ProteinIdentifierType
+	private Set<ProteinProteinInteraction> getBindingPPIs(String stringDBActionsFile)
 	{
-		STRINGDB, UNIPROT_GENE, UNIPROT_ACCESSION, SGD
-	}
-
-	class Protein implements Comparable<Protein>
-	{
-		private String identifierValue;
-		ProteinIdentifierType identifierType;
-		public Protein(String value, ProteinIdentifierType type)
-		{
-			this.identifierValue = value;
-			this.identifierType = type;
-		}
-
-		@Override
-		public String toString()
-		{
-			// Don't want identifierType in string representation of protein. Maybe have a "detailedToString" that could include it.
-			return this.identifierValue;
-		}
-
-		public String toDetailedString()
-		{
-			return this.identifierType.toString() + ":" + this.identifierValue;
-		}
-
-		@Override
-		public int hashCode()
-		{
-			return this.toDetailedString().hashCode();
-		}
-
-		@Override
-		public boolean equals(Object other)
-		{
-			if (other == null)
-			{
-				return false;
-			}
-			if (other instanceof Protein)
-			{
-				return (this.identifierValue == ((Protein)other).identifierValue && this.identifierType == ((Protein)other).identifierType);
-			}
-			return other.equals(this);
-		}
-
-		@Override
-		public int compareTo(Protein protein2)
-		{
-			return this.identifierValue.compareTo(protein2.identifierValue);
-		}
-
-		public String getIdentifierValue()
-		{
-			return identifierValue;
-		}
-
-		public ProteinIdentifierType getIdentifierType()
-		{
-			return identifierType;
-		}
-	}
-
-	class Ppi implements Comparable<Ppi>
-	{
-		private Protein protein1;
-		private Protein protein2;
-
-		public Ppi(Protein protein1, Protein protein2)
-		{
-			this.protein1 = protein1;
-			this.protein2 = protein2;
-		}
-
-		@Override public String toString()
-		{
-			return this.protein1.compareTo(this.protein2) < 0
-					? this.protein1 + "\t" + this.protein2
-					: this.protein2 + "\t" + this.protein1;
-		}
-
-		@Override
-		public int hashCode()
-		{
-			return this.toString().hashCode();
-		}
-
-		@Override
-		public boolean equals(Object other)
-		{
-			if (other == null)
-			{
-				return false;
-			}
-			return this.toString().equals(other.toString());
-		}
-
-		public Protein getProtein1()
-		{
-			return protein1;
-		}
-
-		public Protein getProtein2()
-		{
-			return protein2;
-		}
-
-		@Override
-		public int compareTo(Ppi other)
-		{
-			return this.toString().compareTo(other.toString());
-		}
-	}
-
-	private Set<Ppi> getBindingPPIs(String stringDBActionsFile)
-	{
-		Set<Ppi> ppis = new HashSet<>();
+		Set<ProteinProteinInteraction> ppis = new HashSet<>();
 		String bindingPPIs = outputPath + this.stringDBSpeciesCode + "_binding_PPIs.tsv";
 		try(FileReader reader = new FileReader(stringDBActionsFile);
 			CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT
@@ -174,7 +61,7 @@ public class MapToHuman
 				{
 					Protein protein1 = new Protein(record.get("item_id_a"), ProteinIdentifierType.STRINGDB);
 					Protein protein2 = new Protein(record.get("item_id_b"), ProteinIdentifierType.STRINGDB);
-					Ppi ppi = new Ppi(protein1, protein2);
+					ProteinProteinInteraction ppi = new ProteinProteinInteraction(protein1, protein2);
 					ppis.add(ppi);
 					writer.write(ppi.toString()+"\n");
 				}
@@ -187,9 +74,9 @@ public class MapToHuman
 		return ppis;
 	}
 
-	private Set<Ppi> getPPIsWithExperiments(String stringDBProteinLinksFile)
+	private Set<ProteinProteinInteraction> getPPIsWithExperiments(String stringDBProteinLinksFile)
 	{
-		Set<Ppi> ppis = new HashSet<>();
+		Set<ProteinProteinInteraction> ppis = new HashSet<>();
 		String ppisWithExperimentsScoreFile = outputPath + this.stringDBSpeciesCode + "_PPIs_with_experiments.tsv";
 		// First we have to filter for interactions in protein.links.full where experiment > 0
 		try (FileReader reader = new FileReader(stringDBProteinLinksFile);
@@ -209,7 +96,7 @@ public class MapToHuman
 				{
 					Protein protein1 = new Protein (record.get("protein1") , ProteinIdentifierType.STRINGDB);
 					Protein protein2 = new Protein (record.get("protein2"), ProteinIdentifierType.STRINGDB);
-					Ppi ppi = new Ppi(protein1, protein2);
+					ProteinProteinInteraction ppi = new ProteinProteinInteraction(protein1, protein2);
 					ppis.add(ppi);
 					writer.write(ppi.toString()+"\n");
 				}
@@ -222,13 +109,13 @@ public class MapToHuman
 		return ppis;
 	}
 
-	private Set<Ppi> getBindingPPIsWithExperiments(String stringDBActionsFile, String stringDBProteinLinksFile)
+	private Set<ProteinProteinInteraction> getBindingPPIsWithExperiments(String stringDBActionsFile, String stringDBProteinLinksFile)
 	{
-		Set<Ppi> ppisWithExperiments = getPPIsWithExperiments(stringDBProteinLinksFile);
+		Set<ProteinProteinInteraction> ppisWithExperiments = getPPIsWithExperiments(stringDBProteinLinksFile);
 		logger.info("{} PPIs with experiments > 0", ppisWithExperiments.size());
-		Set<Ppi> ppisBinding = getBindingPPIs(stringDBActionsFile);
+		Set<ProteinProteinInteraction> ppisBinding = getBindingPPIs(stringDBActionsFile);
 		logger.info("{} PPIs with mode==binding", ppisBinding.size());
-		Set<Ppi> ppisBindingAndExperiments = ppisBinding;
+		Set<ProteinProteinInteraction> ppisBindingAndExperiments = ppisBinding;
 		// this will calculate the intersection of "PPIs with experiments > 0" and "Binding PPIs"
 		ppisBindingAndExperiments.retainAll(ppisWithExperiments);
 		logger.info("{} PPIs with experiments > 0 AND mode==binding", ppisBindingAndExperiments.size());
@@ -344,7 +231,7 @@ public class MapToHuman
 		String stringDBProteinActionsFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.actions.v11.0.txt";
 		String stringDBProteinLinksFile = PATH_TO_DATA_FILES + this.stringDBSpeciesCode + ".protein.links.full.v11.0.txt";
 
-		Set<Ppi> ppisFromStringDB = this.getBindingPPIsWithExperiments(stringDBProteinActionsFile, stringDBProteinLinksFile);
+		Set<ProteinProteinInteraction> ppisFromStringDB = this.getBindingPPIsWithExperiments(stringDBProteinActionsFile, stringDBProteinLinksFile);
 		String pathToOrthologMappingFile = PATH_TO_DATA_FILES + "Orthologs_HCOP";
 		Map<String, Set<String>> orthologProteins = getOrthologMappedProteins(pathToOrthologMappingFile, true, species.toString());
 		logger.info("{} ortholog proteins", orthologProteins.size());
@@ -355,12 +242,12 @@ public class MapToHuman
 		int unmappedPPIs = 0;
 		Set<String> ppiLines = new TreeSet<>();
 
-		Map<Ppi, Set<String>> orthologMap = new HashMap<>(ppisFromStringDB.size());
+		Map<ProteinProteinInteraction, Set<String>> orthologMap = new HashMap<>(ppisFromStringDB.size());
 		// If a PPI from StringDB (with experiments > 0 && mode==binding) has both proteins in the mapping, then it's OK! ...and should be written to output file.
 		try(FileWriter writer = new FileWriter(pathToOutputPPIFile);
 			FileWriter unMappedIdentifiers = new FileWriter(this.outputPath + species + "_unmapped_proteins.txt"))
 		{
-			for (Ppi ppi : ppisFromStringDB.stream().sorted().collect(Collectors.toList()))
+			for (ProteinProteinInteraction ppi : ppisFromStringDB.stream().sorted().collect(Collectors.toList()))
 			{
 				Protein p1 = ppi.getProtein1();
 				Protein p2 = ppi.getProtein2();
@@ -401,9 +288,9 @@ public class MapToHuman
 									{
 										sb = new StringBuilder();
 										// Create a new Ortholog PPI
-										Ppi orthologPPI = new Ppi(new Protein(p1Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION));
+										ProteinProteinInteraction orthologPPI = new ProteinProteinInteraction(new Protein(p1Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2Ortholog, ProteinIdentifierType.UNIPROT_ACCESSION));
 										// Create a PPI based on the UniProt identifiers.
-										Ppi ppiAsUniProt = new Ppi(new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION));
+										ProteinProteinInteraction ppiAsUniProt = new ProteinProteinInteraction(new Protein(p1AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION), new Protein(p2AsUniProt, ProteinIdentifierType.UNIPROT_ACCESSION));
 										// build up the list of reasons that this PPI is in the output: for orthologPPI, what are its proteins orthologs of? That goes in the output
 										// to make it easier to trace why the PPI is there.
 										Set<String> reasons = orthologMap.computeIfAbsent(orthologPPI, x -> new TreeSet<>());
@@ -445,7 +332,7 @@ public class MapToHuman
 			}
 			// Write the PPIs from ortholog mapping to output.
 			logger.info("{} PPIs (from Orthologs) in output", orthologMap.size());
-			for (Entry<Ppi, Set<String>> ortholog : orthologMap.entrySet()/*.stream().sorted( (e1,e2) -> e1.getKey().compareTo(e2.getKey()) ).collect(Collectors.toList())*/)
+			for (Entry<ProteinProteinInteraction, Set<String>> ortholog : orthologMap.entrySet()/*.stream().sorted( (e1,e2) -> e1.getKey().compareTo(e2.getKey()) ).collect(Collectors.toList())*/)
 			{
 				writer.write(ortholog.getKey().toString() + "\t(");
 				for (String reason : ortholog.getValue())
