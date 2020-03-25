@@ -158,7 +158,7 @@ public class StringDBPPIChecker {
     @Test
     public void checkOverlappingBetweenBioGridAndStringDB() throws IOException {
         Set<String> stringDbExpPPIsInGenes = loadExpPPIsInGenes();
-        System.out.println("Total StringDB PPIs in genes: " + stringDbExpPPIsInGenes.size());
+        System.out.println("Total StringDB experimental PPIs in genes: " + stringDbExpPPIsInGenes.size());
         Set<String> biogridPPIs = loadBioGridMVPPIs();
         System.out.println("Total BioGrid MV PPIs: " + biogridPPIs.size());
         Set<String> shared = getShared(stringDbExpPPIsInGenes, biogridPPIs);
