@@ -14,10 +14,64 @@ import java.util.stream.Stream;
 import org.gk.util.FileUtilities;
 import org.junit.Test;
 
-public class StringDBPPIChecker {
+public class StringDBHandlerTests extends PPIDataHandlerTests {
     private final String DIR_NAME = "/Users/wug/datasets/StringDB/";
+    private StringDBHandler handler = new StringDBHandler();
     
-    public StringDBPPIChecker() {
+    public StringDBHandlerTests() {
+    }
+    
+    @Test
+    public void testGetMousePPIs() throws IOException {
+        Set<String> ppis = handler.loadMousePPIs();
+        System.out.println("Total mouse ppis: " + ppis.size());
+        peekPPIs(ppis);
+    }
+    
+    @Test
+    public void getGetFlyPPIs() throws IOException {
+        Set<String> ppis = handler.loadFlyPPIs();
+        System.out.println("Total fly PPIs: " + ppis.size());
+        peekPPIs(ppis);
+    }
+    
+    @Test
+    public void testGetWormPPIs() throws IOException {
+        Set<String> ppis = handler.loadWormPPIs();
+        System.out.println("Total worm PPIs: " + ppis.size());
+        peekPPIs(ppis);
+    }
+    
+    @Test
+    public void testGetYeastPPIs() throws IOException {
+        Set<String> ppis = handler.loadYeastPPIs();
+        System.out.println("Total yeast PPIs: " + ppis.size());
+        peekPPIs(ppis);
+    }
+    
+    @Test
+    public void testGetHumanPPIs() throws IOException {
+        Set<String> ppis = handler.loadHumanPPIs();
+        System.out.println("Total human PPIs: " + ppis.size());
+        peekPPIs(ppis);
+    }
+    
+    @Test
+    public void testLoadMousePPIs() throws IOException {
+        StringDBHandler handler = new StringDBHandler();
+        Set<String> ppis = handler.loadMousePPIs();
+        System.out.println("Total Mouse PPIs (exp) in UniProt from StringDB: " + ppis.size());
+        peekPPIs(ppis);
+        BioGridHandler bHandler = new BioGridHandler();
+        Set<String> bPPIs = bHandler.loadMousePPIs();
+        System.out.println("Total Mouse PPIs in UniProt from BioGrid: " + bPPIs.size());
+        peekPPIs(bPPIs);
+        Set<String> merged = new HashSet<>(bPPIs);
+        merged.addAll(ppis);
+        System.out.println("Merged: " + merged.size());
+        Set<String> shared = new HashSet<>(bPPIs);
+        shared.retainAll(ppis);
+        System.out.println("Total shared: " + shared.size());
     }
     
     @Test

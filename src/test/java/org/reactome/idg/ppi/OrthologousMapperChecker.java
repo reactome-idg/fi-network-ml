@@ -154,6 +154,16 @@ public class OrthologousMapperChecker {
     }
     
     @Test
+    public void testLoadSGDIdToHumanUniProtMap() throws IOException {
+        PantherOrthologousMapper mapper = new PantherOrthologousMapper();
+        Map<String, Set<String>> yeastToHuman = mapper.loadYeastIdToHumanUniProtMap();
+        System.out.println("Size: " + yeastToHuman.size());
+        String yeastId = yeastToHuman.keySet().stream().findAny().get();
+        Set<String> humanIds = yeastToHuman.get(yeastId);
+        System.out.println("An example: " + yeastId + " -> " + humanIds);
+    }
+    
+    @Test
     public void testParse() {
         String text = "YEAST|SGD=S000005930|UniProtKB=Q12532";
         String[] tokens = text.split("\\|");
