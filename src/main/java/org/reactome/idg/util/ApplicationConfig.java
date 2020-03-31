@@ -2,7 +2,13 @@ package org.reactome.idg.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
 
@@ -39,6 +45,30 @@ public class ApplicationConfig {
         }
         catch(IOException e) {
             logger.error(e.getMessage(), e);
+        }
+    }
+    
+    public Map<String, String> getGeneToUniProMap() throws IOException {
+        String fileName = getConfig().getAppConfig("reactome.uniprot.to.gene");
+        URL url = getClass().getClassLoader().getResource(fileName);
+        try (Stream<String> lines = Files.lines(Paths.get(url.getFile()))) {
+            return lines.skip(1)
+                        .map(line -> line.split("\t"))
+                        .collect(Collectors.toMap(tokens -> tokens[1], 
+                                                  tokens -> tokens[0],
+                                                  (protein1, protein2) -> protein1)); // In case two proteins are mapped to the same gene, choose the first protein.
+        }
+    }
+    
+    public Map<String, String> getUniProtToGeneMap() throws IOException {
+        String fileName = getConfig().getAppConfig("reactome.uniprot.to.gene");
+        URL url = getClass().getClassLoader().getResource(fileName);
+        try (Stream<String> lines = Files.lines(Paths.get(url.getFile()))) {
+            return lines.skip(1)
+                        .map(line -> line.split("\t"))
+                        .collect(Collectors.toMap(tokens -> tokens[0], 
+                                                  tokens -> tokens[1],
+                                                  (gene1, gene2) -> gene1)); // In case two genes are mapped to the same protein, choose the first one.
         }
     }
     

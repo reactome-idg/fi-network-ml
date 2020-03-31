@@ -1,13 +1,9 @@
 package org.reactome.idg.ppi;
 
 import java.io.IOException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.reactome.idg.util.ApplicationConfig;
@@ -124,13 +120,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
     
     private Map<String, String> getUniProtToGene() throws IOException {
-        if (uniprotToGene == null) {
-            URL url = getClass().getClassLoader().getResource(ApplicationConfig.getConfig().getAppConfig("reactome.uniprot.to.gene"));
-            uniprotToGene = Files.lines(Paths.get(url.getFile()))
-                                 .skip(1) // The header line
-                                 .map(line -> line.split("\t"))
-                                 .collect(Collectors.toMap(tokens -> tokens[0], tokens -> tokens[1]));
-        }
+        if (uniprotToGene == null) 
+            uniprotToGene = ApplicationConfig.getConfig().getUniProtToGeneMap();
         return uniprotToGene;
     }
 
