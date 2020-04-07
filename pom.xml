@@ -18,9 +18,9 @@
 
 	<profiles>
 		<profile>
-			<id>HarmonizomeImporter</id>
+			<id>build-runnable-jar</id>
 			<build>
-				<finalName>harmonizome-downloader</finalName>
+				<finalName>idg-data-importer</finalName>
 				<plugins>
 					<plugin>
 						<artifactId>maven-assembly-plugin</artifactId>
@@ -28,7 +28,8 @@
 						<configuration>
 							<archive>
 								<manifest>
-									<mainClass>org.reactome.idg.harmonizome.DataDownloader</mainClass>
+<!-- 									<mainClass>org.reactome.idg.harmonizome.DataDownloader</mainClass> -->
+									<mainClass>org.reactome.idg.coexpression.CoExpressionAnalyzer</mainClass>
 								</manifest>
 							</archive>
 							<descriptorRefs>
