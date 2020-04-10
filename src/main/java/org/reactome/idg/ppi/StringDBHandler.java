@@ -11,10 +11,10 @@ import org.gk.util.FileUtilities;
 import org.reactome.idg.util.ApplicationConfig;
 
 public class StringDBHandler extends PPIDataHandler {
-    private final String DIR = ApplicationConfig.getConfig().getAppConfig("stringdb.dir");
     private final String EXP_CHANNEL_NAME = "experiments";
     private final ApplicationConfig config = ApplicationConfig.getConfig();
-
+    private final String DIR = config.getAppConfig("stringdb.dir");
+    
     public StringDBHandler() {
     }
     

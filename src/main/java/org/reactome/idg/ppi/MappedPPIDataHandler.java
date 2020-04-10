@@ -9,10 +9,11 @@ import org.apache.log4j.Logger;
 import org.reactome.idg.util.ApplicationConfig;
 
 /**
- * This class is used to map MOD PPIs to human.
+ * This class is used to map MOD PPIs to human. For convenience, human PPIs without mapping
+ * should be loaded using this class too.
  * @author wug
- *
  */
+@SuppressWarnings("unchecked") 
 public class MappedPPIDataHandler extends PPIDataHandler {
     private static Logger logger = Logger.getLogger(MappedPPIDataHandler.class);
     private PPIDataHandler biogridHandler = new BioGridHandler();
@@ -31,7 +32,9 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         logger.info("Total human PPIs from BioGrid: " + bPPIs.size());
         Set<String> sPPIs = stringDBHandler.loadHumanPPIs();
         logger.info("Total human PPIs from StringDB: " + sPPIs.size());
-        return mergePPIs(bPPIs, sPPIs);
+        Set<String> bpPPIs = new BioPlexHandler().loadHumanPPIs();
+        logger.info("Total human PPIs from BioPlex: " + bpPPIs.size());
+        return mergePPIs(bPPIs, sPPIs, bpPPIs);
     }
     
     @Override
@@ -44,14 +47,16 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         return mapMODPPIsToHuman(merged, mapper.loadFlyIdToHumanUniProtMap());
     }
 
-    private Set<String> mergePPIs(Set<String> bPPIs, 
-                                  Set<String> sPPIs) {
+    private Set<String> mergePPIs(Set<String> bPPIs,
+                                  Set<String> ... otherPPIs) {
         Set<String> merged = new HashSet<>(bPPIs);
-        merged.addAll(sPPIs);
+        for (Set<String> otherSet : otherPPIs)
+            merged.addAll(otherSet);
         logger.info("Merged: " + merged.size());
         // For Debug purposes
         Set<String> shared = new HashSet<>(bPPIs);
-        shared.retainAll(sPPIs);
+        for (Set<String> otherSet : otherPPIs)
+            shared.retainAll(otherSet);
         logger.info("Shared: " + shared.size());
         return merged;
     }
