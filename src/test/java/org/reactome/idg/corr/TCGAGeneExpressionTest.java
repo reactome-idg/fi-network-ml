@@ -1,10 +1,13 @@
 package org.reactome.idg.corr;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.InstanceUtilities;
 import org.gk.model.ReactomeJavaConstants;
@@ -13,14 +16,29 @@ import org.gk.persistence.MySQLAdaptor;
 import org.gk.render.Node;
 import org.gk.render.RenderablePathway;
 import org.gk.schema.InvalidAttributeException;
-import org.gk.util.FileUtilities;
 import org.junit.Test;
+import org.reactome.idg.coexpression.CoExpressionLoader;
 
 @SuppressWarnings("unchecked")
 public class TCGAGeneExpressionTest {
+    private static final Logger logger = Logger.getLogger(TCGAGeneExpressionTest.class);
     
     public TCGAGeneExpressionTest() {
-        
+    }
+    
+    @Test
+    public void testLoader() throws IOException {
+        CoExpressionLoader loader = new CoExpressionLoader();
+        List<File> files = loader.getGTExCoExpressionFiles();
+        long time1 = System.currentTimeMillis();
+        for (File file : files) {
+            logger.info("Loading file: " + file.getName());
+            Set<String> rels = loader.loadCoExpression(file, 0.50d);
+            logger.info("Total rels: " + rels.size());
+            break;
+        }
+        long time2 = System.currentTimeMillis();
+        logger.info("Total time for loading: " + (time2 - time1) / 1000.0d + " seconds.");
     }
     
     @Test

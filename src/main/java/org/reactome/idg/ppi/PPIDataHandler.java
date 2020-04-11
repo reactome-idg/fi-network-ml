@@ -3,17 +3,15 @@ package org.reactome.idg.ppi;
 import java.io.IOException;
 import java.util.Set;
 
+import org.reactome.fi.util.InteractionUtilities;
+
 public abstract class PPIDataHandler {
 
-    protected String getPPI(String protein1, String protein2) {
-        if (protein1 == null || protein2 == null)
+    protected String getPPI(String gene1, String gene2) {
+        // In case either of genes is null
+        if (gene1 == null || gene2 == null || gene1.equals(gene2))
             return null;
-        int compare = protein1.compareTo(protein2);
-        if (compare > 0)
-            return protein2 + "\t" + protein1;
-        else if (compare < 0)
-            return protein1 + "\t" + protein2;
-        return null; // Avoid self-interaction
+        return InteractionUtilities.generateFIFromGene(gene1, gene2);
     }
     
     /**

@@ -1,4 +1,4 @@
-package org.reactome.idg.ddi;
+package org.reactome.idg.misc;
 
 import java.io.IOException;
 import java.util.Set;

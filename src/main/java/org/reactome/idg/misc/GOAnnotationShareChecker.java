@@ -11,6 +11,7 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 import org.reactome.data.GODataAnalyzerV2;
 import org.reactome.idg.util.ApplicationConfig;
+import org.reactome.idg.util.FINetworkBuildConfig;
 
 /**
  * This class is used to check if two genes have shared go terms.
@@ -24,6 +25,8 @@ public class GOAnnotationShareChecker extends FINetworkBuildConfig {
     
     public GOAnnotationShareChecker() {
         goAnalyzer = new GODataAnalyzerV2();
+        String goaFileName = ApplicationConfig.getConfig().getAppConfig("goa.human.file");
+        goAnalyzer.getTermLoader().setGoaFileName(goaFileName);
     }
     
     /**

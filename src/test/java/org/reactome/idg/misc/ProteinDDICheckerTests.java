@@ -1,10 +1,9 @@
-package org.reactome.idg.ddi;
+package org.reactome.idg.misc;
 
 import java.io.IOException;
 import java.util.Set;
 
 import org.junit.Test;
-import org.reactome.idg.misc.ProteinDDIChecker;
 import org.reactome.idg.ppi.PPIDataHandlerTests;
 
 public class ProteinDDICheckerTests extends PPIDataHandlerTests {

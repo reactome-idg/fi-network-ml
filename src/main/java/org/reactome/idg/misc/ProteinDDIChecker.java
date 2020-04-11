@@ -11,6 +11,7 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 import org.reactome.data.PfamAnalyzer;
 import org.reactome.idg.util.ApplicationConfig;
+import org.reactome.idg.util.FINetworkBuildConfig;
 
 /**
  * In order to use this class, a pre-generated Uni2Pfam.txt should exist.
@@ -25,6 +26,8 @@ public class ProteinDDIChecker extends FINetworkBuildConfig {
 
     public ProteinDDIChecker() {
         pfamAnayzer = new PfamAnalyzer();
+        pfamAnayzer.setpFamDirName(ApplicationConfig.getConfig().getAppConfig("pfam.dir"));
+        pfamAnayzer.setUniprotDirName(ApplicationConfig.getConfig().getAppConfig("uniprot.dir"));
     }
 
     /**
