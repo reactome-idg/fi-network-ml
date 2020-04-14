@@ -18,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
+import org.reactome.fi.util.InteractionUtilities;
+import org.reactome.idg.util.ApplicationConfig;
 
 /**
  * This class is used to process a download similarity data and generate a set of selected
@@ -28,8 +30,8 @@ import org.gk.persistence.MySQLAdaptor;
 public class DataProcessor {
     private final static Logger logger = LogManager.getLogger(DataProcessor.class);
     public static final int FIRST_INDEX = 3;
-    public static final double VALUE_THRESHOLD = 0.50d;
-    public static final int GENE_NUMBER_THRESHOLD = 12000; // Make sure a similarity file has more than 12,000 genes
+    public static double VALUE_THRESHOLD = 0.50d;
+    public static int GENE_NUMBER_THRESHOLD = 12000; // Make sure a similarity file has more than 12,000 genes
     private static final String ALL_GENE_FILE_NAME = "Reactome_All_Genes.txt";
 
     // Keep the target genes we want to investiage
@@ -42,7 +44,7 @@ public class DataProcessor {
         if (allGenes != null)
             return allGenes;
         // Need to load all human genes from a Reactome database
-        InputStream is = getClass().getClassLoader().getResourceAsStream(ALL_GENE_FILE_NAME);
+        InputStream is = ApplicationConfig.getConfig().getInputStream(ALL_GENE_FILE_NAME);
         allGenes = new HashSet<>();
         Scanner scanner = new Scanner(is);
         while (scanner.hasNextLine())
@@ -132,6 +134,7 @@ public class DataProcessor {
         builder.setLength(0);
         String[] tokens = null;
         boolean hasValue = false;
+        int currentPrintLine = 1;
         while ((line = br.readLine()) != null) {
             currentRow ++;
 //            if (currentRow == 10000)
@@ -141,11 +144,11 @@ public class DataProcessor {
                 continue;
             builder.append(tokens[0]);
             // All empty cells
-            for (int i = 0; i < currentRow; i++)
+            for (int i = 0; i < currentPrintLine; i++)
                 builder.append("\t");
             // The matrix is square, therefore, we only need to handle the top-right half of the matrix
             for (int i = currentRow + 1; i < tokens.length; i++) {
-                if (!allGenes.contains(tokens[0]))
+                if (!allGenes.contains(geneHeaders[i]))
                     continue;
                 Double value = new Double(tokens[i]);
                 if (Math.abs(value) >= VALUE_THRESHOLD) { // Make sure it is absolute
@@ -160,6 +163,7 @@ public class DataProcessor {
             }
             processedWriter.println(builder.toString());
             builder.setLength(0);
+            currentPrintLine ++;
         }
         br.close();
         filteredWriter.close();
@@ -177,11 +181,7 @@ public class DataProcessor {
     }
     
     private String generateFI(String gene1, String gene2) {
-        int compare = gene1.compareTo(gene2);
-        if (compare < 0)
-            return gene1 + "\t" + gene2;
-        else
-            return gene2 + "\t" + gene1;
+        return InteractionUtilities.generateFIFromGene(gene1, gene2);
     }
 
     private int getTotalGenes(String[] geneHeaders, Set<String> needed) {

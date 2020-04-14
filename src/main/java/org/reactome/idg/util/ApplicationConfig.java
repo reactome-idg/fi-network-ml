@@ -60,6 +60,13 @@ public class ApplicationConfig {
         }
     }
     
+    public double getMaximumCutoff() {
+        String value = getConfig().getAppConfig("maximum.cutoff");
+        if (value == null || value.length() == 0)
+            value = "0.999";
+        return Double.parseDouble(value);
+    }
+    
     public Map<String, String> getGeneToUniProMap() throws IOException {
         String fileName = getConfig().getAppConfig("reactome.uniprot.to.gene");
         InputStream is = getInputStream(fileName);

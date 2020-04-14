@@ -234,13 +234,21 @@ public class DataDownloader {
 //            is.close();
 //            return;
 //        }
+        String fileName = dirName + "/" + path + ".txt";
+        unzipDownload(gzFile, new File(fileName));
+        long time2 = System.currentTimeMillis();
+        logger.info("Total time for downloading: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
+        return fileName;
+    }
+    
+    public void unzipDownload(File gzFile,
+                              File outFile) throws IOException {
         // Assign 1000K as the buffer to increase the performance
         FileInputStream fis = new FileInputStream(gzFile);
         GZIPInputStream zis = new GZIPInputStream(fis, 1000 * 1024);
         // There should be only one entry in the file
         Scanner scanner = new Scanner(zis);
-        String fileName = dirName + "/" + path + ".txt";
-        PrintWriter pw = new PrintWriter(fileName);
+        PrintWriter pw = new PrintWriter(outFile);
         String line = null;
         while (scanner.hasNext()) {
            line = scanner.nextLine();
@@ -250,9 +258,6 @@ public class DataDownloader {
         scanner.close();
         zis.close();
         fis.close();
-        long time2 = System.currentTimeMillis();
-        logger.info("Total time for downloading: " + (time2 - time1) / (60.0d * 1000) + " minutes.");
-        return fileName;
     }
     
     @Test

@@ -27,6 +27,26 @@ public class TCGAGeneExpressionTest {
     }
     
     @Test
+    public void testGetCutoffValueForRatio() throws IOException {
+        CoExpressionLoader loader = new CoExpressionLoader();
+        List<File> files = loader.getGTExCoExpressionFiles();
+        double percentile = 0.001d;
+        long time1 = System.currentTimeMillis();
+        long memory = Runtime.getRuntime().totalMemory();
+        logger.info("Total memory before loading: " + memory / (1024 * 1024 * 1024.0d) + " G.");
+        for (File file : files) {
+            logger.info("Loading file: " + file.getName());
+            double cutoff = loader.getCutoffValueForRatio(file, percentile);
+            logger.info("cutoff: " + cutoff);
+            break;
+        }
+        long time2 = System.currentTimeMillis();
+        logger.info("Total time for loading: " + (time2 - time1) / 1000.0d + " seconds.");
+        memory = Runtime.getRuntime().totalMemory();
+        logger.info("Total memory after loading: " + memory / (1024 * 1024 * 1024.0d) + " G.");
+    }
+    
+    @Test
     public void testLoader() throws IOException {
         CoExpressionLoader loader = new CoExpressionLoader();
         List<File> files = loader.getGTExCoExpressionFiles();
@@ -39,6 +59,10 @@ public class TCGAGeneExpressionTest {
         }
         long time2 = System.currentTimeMillis();
         logger.info("Total time for loading: " + (time2 - time1) / 1000.0d + " seconds.");
+    }
+    
+    public static void main(String[] args) throws Exception {
+        new TCGAGeneExpressionTest().testGetCutoffValueForRatio();
     }
     
     @Test

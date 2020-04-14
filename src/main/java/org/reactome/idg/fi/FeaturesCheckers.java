@@ -2,11 +2,14 @@ package org.reactome.idg.fi;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
+import org.junit.Test;
 import org.reactome.fi.util.FeatureChecker;
+import org.reactome.fi.util.FileUtility;
 import org.reactome.idg.coexpression.CoExpressionLoader;
 import org.reactome.idg.harmonizome.HarmonizomePairwiseLoader;
 import org.reactome.idg.misc.GOAnnotationShareChecker;
@@ -30,9 +33,9 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
     public static void main(String[] args) {
         FeaturesCheckers handler = new FeaturesCheckers();
         try {
-            handler.checkPPIFeatures();
-            handler.checkMiscFeatures();
-            handler.checkHarmonizomeFeatures();
+//            handler.checkPPIFeatures();
+//            handler.checkMiscFeatures();
+//            handler.checkHarmonizomeFeatures();
             handler.checkGeneExpressionFeatures();
         }
         catch(Exception e) {
@@ -95,7 +98,7 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
      * Check gene coexpression features provided via package org.reactome.idg.coexpression.
      * @throws Exception
      */
-    public void checkGeneExpressionFeatures() throws Exception {
+    public void checkGeneExpressionFeaturesViaCutoff() throws Exception {
         String cutoff = ApplicationConfig.getConfig().getAppConfig("coexpression.cutoff");
         if (cutoff == null || cutoff.length() == 0)
             cutoff = "0.5d";
@@ -108,6 +111,44 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
             Set<String> rels = loader.loadCoExpression(file, new Double(cutoff));
             checkFeatureOddsRatio(rels);
         }
+        files = loader.getTCGACoExpressionFiles();
+        logger.info("Total TCGA files: " + files.size());
+        for (File file : files) {
+            logger.info("Check " + file.getName() + "...");
+            Set<String> rels = loader.loadCoExpression(file, new Double(cutoff));
+            checkFeatureOddsRatio(rels);
+        }
+    }
+    
+    /**
+     * Check gene coexpression features provided via package org.reactome.idg.coexpression.
+     * @throws Exception
+     */
+    public void checkGeneExpressionFeatures() throws Exception {
+        String percentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
+        if (percentile == null || percentile.length() == 0)
+            percentile = "0.001";
+        logger.info("Coexpression precentile: " + percentile);
+        CoExpressionLoader loader = new CoExpressionLoader();
+        List<File> files = loader.getGTExCoExpressionFiles();
+        logger.info("Total GTEx files: " + files.size());
+        for (File file : files) {
+            logger.info("Check " + file.getName() + "...");
+            double cutoff = loader.getCutoffValueForRatio(file, new Double(percentile));
+            logger.info("Found cutoff: " + cutoff);
+            Set<String> rels = loader.loadCoExpression(file, cutoff);
+            checkFeatureOddsRatio(rels);
+        }
+//        files = loader.getTCGACoExpressionFiles();
+        files = loader.getTCGAFilesFromList();
+        logger.info("Total TCGA files: " + files.size());
+        for (File file : files) {
+            logger.info("Check " + file.getName() + "...");
+            double cutoff = loader.getCutoffValueForRatio(file, new Double(percentile));
+            logger.info("Found cutoff: " + cutoff);
+            Set<String> rels = loader.loadCoExpression(file, cutoff);
+            checkFeatureOddsRatio(rels);
+        }
     }
     
     /**
@@ -115,14 +156,67 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
      * @throws Exception
      */
     public void checkHarmonizomeFeatures() throws Exception {
+        String percentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
+        if (percentile == null || percentile.length() == 0)
+            percentile = "0.001";
         HarmonizomePairwiseLoader loader = new HarmonizomePairwiseLoader();
-        List<File> files = loader.getPairwiseFiles();
-        logger.info("Total Harmonizome files: " + files.size());
+//        List<File> files = loader.getPairwiseFiles();
+//        List<File> files = loader.getProcessedFiles();
+        List<File> files = loader.getDownloadedFiles();
+        logger.info("Total Harmonizome files (downloaded): " + files.size());
         for (File file : files) {
             logger.info("Check " + file.getName() + "...");
-            Set<String> rels = loader.loadPairwises(file);
+            Set<String> rels = loader.loadPairwisesFromDownload(file, new Double(percentile));
             checkFeatureOddsRatio(rels);
         }
+    }
+    
+    @Test
+    public void collectResults() throws IOException {
+        String dir = "results/coexpression/features_check/";
+        String[] files = {"out_041120.txt", "out_041220.txt"};
+        FileUtility fu = new FileUtility();
+        StringBuilder builder = new StringBuilder();
+        String line = null;
+        System.out.println("Feature\tTotalPairs\tMappedPairs\tRatio\tOddsRatio\tOR_SD");
+        for (String file : files) {
+            fu.setInput(dir + file);
+            while ((line = fu.readLine()) != null) {
+                if (line.contains("org.reactome.idg.fi.FeaturesCheckers  - Check")) {
+                    if (builder.length() > 0) {
+                        System.out.println(builder.toString());
+                        builder.setLength(0);
+                    }
+                    int index = line.lastIndexOf("Check");
+                    int index1 = line.lastIndexOf("...");
+                    String feature = line.substring(index + "Check".length(), index1).trim();
+                    builder.append(feature);
+                }
+                else if (line.startsWith("Total checked pairs:")) {
+                    int index = line.indexOf(":");
+                    String totalPairs = line.substring(index + 1).trim();
+                    builder.append("\t").append(totalPairs);
+                }
+                else if (line.startsWith("Mapped to ppi:")) {
+                    String[] tokens = line.split(": | \\(|\\)");
+                    builder.append("\t").append(tokens[1]);
+                    builder.append("\t").append(tokens[2].substring(1, tokens[2].length() - 1));
+                }
+                else if (line.startsWith("Average odds ratio:")) {
+                    String[] tokens = line.split(": | \\(| \\+- ");
+                    builder.append("\t").append(tokens[1]);
+                    builder.append("\t").append(tokens[2]);
+                }
+            }
+            fu.close();
+        }
+    }
+    
+    @Test
+    public void test() {
+        String line = "Mapped to ppi: 31612 (0.222111)";
+        String[] tokens = line.split(": | \\(|\\)");
+        Arrays.asList(tokens).stream().forEach(System.out::println);
     }
 
 }
