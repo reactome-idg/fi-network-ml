@@ -35,8 +35,8 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
         try {
 //            handler.checkPPIFeatures();
 //            handler.checkMiscFeatures();
-//            handler.checkHarmonizomeFeatures();
-            handler.checkGeneExpressionFeatures();
+            handler.checkHarmonizomeFeatures();
+//            handler.checkGeneExpressionFeatures();
         }
         catch(Exception e) {
             handler.logger.error(e.getMessage(), e);
@@ -156,14 +156,16 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
      * @throws Exception
      */
     public void checkHarmonizomeFeatures() throws Exception {
-        String percentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
+        String percentile = ApplicationConfig.getConfig().getAppConfig("harmonizome.percentile");
         if (percentile == null || percentile.length() == 0)
-            percentile = "0.001";
+            percentile = "0.01"; // Default for harmonizome is 0.01
+        logger.info("Chosen percentile: " + percentile);
         HarmonizomePairwiseLoader loader = new HarmonizomePairwiseLoader();
 //        List<File> files = loader.getPairwiseFiles();
 //        List<File> files = loader.getProcessedFiles();
-        List<File> files = loader.getDownloadedFiles();
-        logger.info("Total Harmonizome files (downloaded): " + files.size());
+//        List<File> files = loader.getDownloadedFiles();
+        List<File> files = loader.getSelectedDownloadFiles();
+        logger.info("Total Harmonizome files (selected downloaded): " + files.size());
         for (File file : files) {
             logger.info("Check " + file.getName() + "...");
             Set<String> rels = loader.loadPairwisesFromDownload(file, new Double(percentile));
@@ -173,28 +175,54 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
     
     @Test
     public void collectResults() throws IOException {
-        String dir = "results/coexpression/features_check/";
+        String dir = "results/features_check/";
         String[] files = {"out_041120.txt", "out_041220.txt"};
+        files = new String[] {
+//                "out_041320.txt",
+//                "out_041420_tcga.txt",
+//                "out_041420_harmonizome.txt",
+                "out_041420_harmonizome_1.txt"
+        };
         FileUtility fu = new FileUtility();
         StringBuilder builder = new StringBuilder();
         String line = null;
-        System.out.println("Feature\tTotalPairs\tMappedPairs\tRatio\tOddsRatio\tOR_SD");
+        System.out.println("Feature\tTotalPairs\tCutoff\tFilteredPairs\tMappedPairs\tRatio\tOddsRatio\tOR_SD");
+        Double cutoff = null;
         for (String file : files) {
             fu.setInput(dir + file);
             while ((line = fu.readLine()) != null) {
+//                System.out.println(line);
                 if (line.contains("org.reactome.idg.fi.FeaturesCheckers  - Check")) {
                     if (builder.length() > 0) {
                         System.out.println(builder.toString());
                         builder.setLength(0);
+                        cutoff = null;
                     }
                     int index = line.lastIndexOf("Check");
                     int index1 = line.lastIndexOf("...");
                     String feature = line.substring(index + "Check".length(), index1).trim();
                     builder.append(feature);
                 }
+                else if (line.contains("Total values:") ||
+                         line.contains("All values have been loaded")) {
+                    int index = line.lastIndexOf(":");
+                    String totalValues = line.substring(index + 1).trim();
+                    builder.append("\t").append(totalValues);
+                }
+                else if (line.contains("Cutoff value: ") ||
+                         line.contains("Found cutoff:")) {
+                    int index = line.lastIndexOf(":");
+                    cutoff = new Double(line.substring(index + 1).trim()); // Hold on for the time being
+                }
+                else if (line.contains("Cutoff adjusted to:")) {
+                    int index = line.lastIndexOf(":");
+                    cutoff = new Double(line.substring(index + 1).trim());
+                }
                 else if (line.startsWith("Total checked pairs:")) {
                     int index = line.indexOf(":");
                     String totalPairs = line.substring(index + 1).trim();
+                    // Don't forget to push this first
+                    builder.append("\t").append(cutoff);
                     builder.append("\t").append(totalPairs);
                 }
                 else if (line.startsWith("Mapped to ppi:")) {
@@ -208,6 +236,7 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
                     builder.append("\t").append(tokens[2]);
                 }
             }
+            System.out.println(builder.toString());
             fu.close();
         }
     }

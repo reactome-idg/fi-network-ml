@@ -1,7 +1,10 @@
 package org.reactome.idg.harmonizome;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -57,6 +60,19 @@ public class HarmonizomePairwiseLoader {
         String dirName = ApplicationConfig.getConfig().getAppConfig("harmonizome.downloaded.dir");
         File dir = new File(dirName);
         return getFiles(dir, ".txt.tgz");
+    }
+    
+    public List<File> getSelectedDownloadFiles() throws IOException {
+        String dirName = ApplicationConfig.getConfig().getAppConfig("harmonizome.downloaded.dir");
+        String fileName = ApplicationConfig.getConfig().getAppConfig("harmonizome.selected.download.file");
+        InputStream is = ApplicationConfig.getConfig().getInputStream(fileName);
+        try (Stream<String> lines = new BufferedReader(new InputStreamReader(is)).lines()) {
+            List<File> files = lines.skip(1)
+                                    .map(line -> line.split("\t")[0])
+                                    .map(name -> new File(dirName, name))
+                                    .collect(Collectors.toList());
+            return files;
+        }
     }
     
     private List<File> getFiles(File dir, String ext) {
