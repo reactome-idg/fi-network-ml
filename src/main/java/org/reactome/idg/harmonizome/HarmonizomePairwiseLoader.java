@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -62,16 +63,16 @@ public class HarmonizomePairwiseLoader {
         return getFiles(dir, ".txt.tgz");
     }
     
-    public List<File> getSelectedDownloadFiles() throws IOException {
+    public Map<File, Double> getSelectedDownloadFiles() throws IOException {
         String dirName = ApplicationConfig.getConfig().getAppConfig("harmonizome.downloaded.dir");
         String fileName = ApplicationConfig.getConfig().getAppConfig("harmonizome.selected.download.file");
         InputStream is = ApplicationConfig.getConfig().getInputStream(fileName);
         try (Stream<String> lines = new BufferedReader(new InputStreamReader(is)).lines()) {
-            List<File> files = lines.skip(1)
-                                    .map(line -> line.split("\t")[0])
-                                    .map(name -> new File(dirName, name))
-                                    .collect(Collectors.toList());
-            return files;
+            Map<File, Double> file2Percentile = lines.skip(1)
+                                    .map(line -> line.split("\t"))
+                                    .collect(Collectors.toMap(tokens -> new File(dirName, tokens[0]),
+                                                              tokens -> new Double(tokens[1])));
+            return file2Percentile;
         }
     }
     

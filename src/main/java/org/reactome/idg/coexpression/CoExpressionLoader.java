@@ -100,11 +100,29 @@ public class CoExpressionLoader {
     }
     
     /**
+     * This method should be called to load coexpression values for ML.
+     * @param file
+     * @param percentile
+     * @return
+     * @throws IOException
+     */
+    public Set<String> loadCoExpressionViaPercentile(File file, Double percentile) throws IOException {
+        if (percentile == null)
+            throw new IllegalArgumentException("Percentile should not be null!");
+        logger.info("Check " + file.getName() + "...");
+        double cutoff = getCutoffValueForRatio(file, percentile);
+        logger.info("Found cutoff: " + cutoff);
+        Set<String> rels = loadCoExpression(file, cutoff);
+        return rels;
+    }
+    
+    /**
      * Some of the code below was copied from org.reactome.idg.pairwise.main.GTExDataProcessor.java.
      * @param file
      * @return
      * @throws IOException
      */
+    @Deprecated
     public Set<String> loadCoExpression(File file, double cutoff) throws IOException {
         FileUtility fu = new FileUtility();
         fu.setInput(file.getAbsolutePath());

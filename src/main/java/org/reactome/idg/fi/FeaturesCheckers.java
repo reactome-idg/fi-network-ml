@@ -163,8 +163,8 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
         HarmonizomePairwiseLoader loader = new HarmonizomePairwiseLoader();
 //        List<File> files = loader.getPairwiseFiles();
 //        List<File> files = loader.getProcessedFiles();
-//        List<File> files = loader.getDownloadedFiles();
-        List<File> files = loader.getSelectedDownloadFiles();
+        List<File> files = loader.getDownloadedFiles();
+//        List<File> files = loader.getSelectedDownloadFiles();
         logger.info("Total Harmonizome files (selected downloaded): " + files.size());
         for (File file : files) {
             logger.info("Check " + file.getName() + "...");
