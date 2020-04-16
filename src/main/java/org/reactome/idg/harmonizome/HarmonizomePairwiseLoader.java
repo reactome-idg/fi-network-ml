@@ -69,6 +69,7 @@ public class HarmonizomePairwiseLoader {
         InputStream is = ApplicationConfig.getConfig().getInputStream(fileName);
         try (Stream<String> lines = new BufferedReader(new InputStreamReader(is)).lines()) {
             Map<File, Double> file2Percentile = lines.skip(1)
+                                    .filter(line -> !line.startsWith("#")) // Filter these files for easy editing
                                     .map(line -> line.split("\t"))
                                     .collect(Collectors.toMap(tokens -> new File(dirName, tokens[0]),
                                                               tokens -> new Double(tokens[1])));

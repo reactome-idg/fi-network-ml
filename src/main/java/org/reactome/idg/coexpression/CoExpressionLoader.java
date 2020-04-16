@@ -29,10 +29,12 @@ public class CoExpressionLoader {
     public CoExpressionLoader() {
     }
 
-    private List<File> getGeneCoExpressionFiles(File dir) {
+    private List<File> getGeneCoExpressionFiles(File dir,
+                                                Set<String> excluded) {
         return Arrays.asList(dir.listFiles())
                      .stream()
                      .filter(file -> file.getName().endsWith("_Spearman_Adj.csv"))
+                     .filter(file -> !excluded.contains(file.getName()))
                      .collect(Collectors.toList());
     }
     
@@ -40,14 +42,26 @@ public class CoExpressionLoader {
         String dir = ApplicationConfig.getConfig().getAppConfig("gtex.coexpression.dir");
         if (dir == null || dir.length() == 0)
             return new ArrayList<>();
-        return getGeneCoExpressionFiles(new File(dir));
+        Set<String> excludedFiles = getExcludedFiles("gtex.excluded.files");
+        return getGeneCoExpressionFiles(new File(dir), excludedFiles);
+    }
+
+    private Set<String> getExcludedFiles(String setting) {
+        String excludedFiles = ApplicationConfig.getConfig().getAppConfig(setting);
+        Set<String> excludedFileNames = null;
+        if (excludedFiles == null || excludedFiles.length() == 0)
+            excludedFileNames = new HashSet<>();
+        else
+            excludedFileNames = Arrays.asList(excludedFiles.split(",")).stream().collect(Collectors.toSet());
+        return excludedFileNames;
     }
     
     public List<File> getTCGACoExpressionFiles() {
         String dir = ApplicationConfig.getConfig().getAppConfig("tcga.coexpression.dir");
         if (dir == null || dir.length() == 0)
             return new ArrayList<>();
-        return getGeneCoExpressionFiles(new File(dir));
+        Set<String> excludedFiles = getExcludedFiles("tcga.excluded.files");
+        return getGeneCoExpressionFiles(new File(dir), excludedFiles);
     }
     
     public List<File> getTCGAFilesFromList() throws IOException {
@@ -122,7 +136,6 @@ public class CoExpressionLoader {
      * @return
      * @throws IOException
      */
-    @Deprecated
     public Set<String> loadCoExpression(File file, double cutoff) throws IOException {
         FileUtility fu = new FileUtility();
         fu.setInput(file.getAbsolutePath());

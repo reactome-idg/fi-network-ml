@@ -3,7 +3,9 @@ package org.reactome.idg.fi;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
@@ -35,7 +37,7 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
         try {
 //            handler.checkPPIFeatures();
 //            handler.checkMiscFeatures();
-            handler.checkHarmonizomeFeatures();
+//            handler.checkHarmonizomeFeatures();
 //            handler.checkGeneExpressionFeatures();
         }
         catch(Exception e) {
@@ -43,6 +45,7 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
         }
     }
     
+
     private void setUpChecker() throws IOException {
         if (checker == null) {
             checker = new FeatureChecker();
@@ -139,8 +142,8 @@ public class FeaturesCheckers extends FINetworkBuildConfig {
             Set<String> rels = loader.loadCoExpression(file, cutoff);
             checkFeatureOddsRatio(rels);
         }
-//        files = loader.getTCGACoExpressionFiles();
-        files = loader.getTCGAFilesFromList();
+        files = loader.getTCGACoExpressionFiles();
+//        files = loader.getTCGAFilesFromList();
         logger.info("Total TCGA files: " + files.size());
         for (File file : files) {
             logger.info("Check " + file.getName() + "...");

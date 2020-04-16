@@ -83,6 +83,10 @@ public class ApplicationConfig {
         }
     }
     
+    public Set<String> getAllGenes() throws IOException {
+        return getGeneToUniProMap().keySet();
+    }
+    
     public Map<String, String> getUniProtToGeneMap() throws IOException {
         String fileName = getConfig().getAppConfig("reactome.uniprot.to.gene");
         InputStream is = getInputStream(fileName);

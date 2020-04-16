@@ -9,7 +9,6 @@ import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Properties;
-import java.util.Scanner;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,7 +31,6 @@ public class DataProcessor {
     public static final int FIRST_INDEX = 3;
     public static double VALUE_THRESHOLD = 0.50d;
     public static int GENE_NUMBER_THRESHOLD = 12000; // Make sure a similarity file has more than 12,000 genes
-    private static final String ALL_GENE_FILE_NAME = "Reactome_All_Genes.txt";
 
     // Keep the target genes we want to investiage
     private Set<String> allGenes;
@@ -44,13 +42,8 @@ public class DataProcessor {
         if (allGenes != null)
             return allGenes;
         // Need to load all human genes from a Reactome database
-        InputStream is = ApplicationConfig.getConfig().getInputStream(ALL_GENE_FILE_NAME);
-        allGenes = new HashSet<>();
-        Scanner scanner = new Scanner(is);
-        while (scanner.hasNextLine())
-            allGenes.add(scanner.nextLine());
-        scanner.close();
-        logger.info("Total human genes from Reactome: " + allGenes.size());
+        allGenes = ApplicationConfig.getConfig().getAllGenes();
+        logger.info("Total human genes: " + allGenes.size());
         return allGenes;
     }
     
