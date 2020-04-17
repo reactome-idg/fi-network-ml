@@ -63,8 +63,12 @@ public class FeatureFileGenerator {
      */
     public void buildFeatureMatrix(String outFileName) throws Exception {
         logger.info("Loading all features...");
+        long memory = Runtime.getRuntime().totalMemory();
+        logger.info("Total memory before loading all features: " + memory / (1024 * 1024.0d) + " MB.");
         Map<String, Set<String>> featureToPairs = loadAllFeatures();
         logger.info("Feature loading is done. Total features: " + featureToPairs.size());
+        memory = Runtime.getRuntime().totalMemory();
+        logger.info("Total memory after loading all features: " + memory / (1024 * 1024.0d) + " MB.");
         // Check the features
         featureToPairs.forEach((feature, pair) -> {
             logger.info(feature + ": " + pair.size());
@@ -189,7 +193,7 @@ public class FeatureFileGenerator {
         tcgaFiles.sort(fileSorter);
         logger.info("Loading TCGA features...");
         loadCoExpFeatures(coexpressionHandler,
-                          gteFiles,
+                          tcgaFiles,
                           null, // Provide by the file name directly
                           coexpPercentValue,
                           feature2pairs);
