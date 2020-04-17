@@ -1,21 +1,21 @@
 file_name	cutoff_percentile	note
-#achilles.txt.tgz	0.01	Got more pairs
-#encodetf.txt.tgz	0.001	0.01 and 0.001 gave the same results
-#encodetfppi.txt.tgz	0.001	0.01 and 0.001 gave the same results
-#gadhighlevel.txt.tgz	0.001	0.01 and 0.001 gave the same results (almost)
-#generif.txt.tgz	0.001	odds ratio at 0.01 is ~ 3.0
-#genesigdb.txt.tgz	0.01	Got more pairs
+achilles.txt.tgz	0.01	Got more pairs
+encodetf.txt.tgz	0.001	0.01 and 0.001 gave the same results
+encodetfppi.txt.tgz	0.001	0.01 and 0.001 gave the same results
+gadhighlevel.txt.tgz	0.001	0.01 and 0.001 gave the same results (almost)
+generif.txt.tgz	0.001	odds ratio at 0.01 is ~ 3.0
+genesigdb.txt.tgz	0.01	Got more pairs
 gobp.txt.tgz	0.01	Got more pairs
-#gomf.txt.tgz	0.01	Got more pairs
+gomf.txt.tgz	0.01	Got more pairs
 hpo.txt.tgz	0.01	Got more pairs
-#hubs.txt.tgz	0.01	Got more pairs
-#hugenavigator.txt.tgz	0.01	Got more pairs
-#jensencompartmenttextmining.txt.tgz	0.01	Got more pairs
-#jensendiseasecurated.txt.tgz	0.001	0.01 and 0.001 gave the same results
-#jensendiseasetextmining.txt.tgz	0.01	Got more pairs
-#jensentissuetextmining.txt.tgz	0.001	better odds ratio
-#lincscmapchemical.txt.tgz	0.01	Got more pairs
-#msigdbcomp.txt.tgz	0.01	Got more pairs
-#nursa.txt.tgz	0.01	Got more pairs
-#phosphositetextmining.txt.tgz	0.01	Got more pairs
-#proteomicsdb.txt.tgz	0.01	Got more pairs
+hubs.txt.tgz	0.01	Got more pairs
+hugenavigator.txt.tgz	0.01	Got more pairs
+jensencompartmenttextmining.txt.tgz	0.01	Got more pairs
+jensendiseasecurated.txt.tgz	0.001	0.01 and 0.001 gave the same results
+jensendiseasetextmining.txt.tgz	0.01	Got more pairs
+jensentissuetextmining.txt.tgz	0.001	better odds ratio
+lincscmapchemical.txt.tgz	0.01	Got more pairs
+msigdbcomp.txt.tgz	0.01	Got more pairs
+nursa.txt.tgz	0.01	Got more pairs
+phosphositetextmining.txt.tgz	0.01	Got more pairs
+proteomicsdb.txt.tgz	0.01	Got more pairs
