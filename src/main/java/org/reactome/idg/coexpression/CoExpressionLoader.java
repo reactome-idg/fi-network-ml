@@ -28,8 +28,17 @@ import org.reactome.idg.util.ApplicationConfig;
  */
 public class CoExpressionLoader {
     private static final Logger logger = Logger.getLogger(CoExpressionLoader.class);
+    private boolean needNegative = false;
     
     public CoExpressionLoader() {
+    }
+
+    public boolean isNeedNegative() {
+        return needNegative;
+    }
+
+    public void setNeedNegative(boolean needNegative) {
+        this.needNegative = needNegative;
     }
 
     private List<File> getGeneCoExpressionFiles(File dir,
@@ -165,7 +174,10 @@ public class CoExpressionLoader {
                     if (gene1.equals(gene2))
                         throw new IllegalStateException("Gene1 and Gene2 should not be the same: " + gene1);
                     String rel = InteractionUtilities.generateFIFromGene(gene1, gene2);
-                    rels.add(rel);
+                    if (needNegative)
+                        rels.add(rel + "\t" + (value > 0 ? "+" : "-"));
+                    else
+                        rels.add(rel);
                 }
             }
             c ++;

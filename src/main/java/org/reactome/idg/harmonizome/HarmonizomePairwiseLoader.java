@@ -34,10 +34,19 @@ import org.reactome.idg.util.ApplicationConfig;
 public class HarmonizomePairwiseLoader {
     private final static Logger logger = Logger.getLogger(HarmonizomePairwiseLoader.class);
     private final String DIR = ApplicationConfig.getConfig().getAppConfig("harmonizome.filtered.dir");
+    private boolean needNegative = false;
     
     public HarmonizomePairwiseLoader() {
     }
     
+    public boolean isNeedNegative() {
+        return needNegative;
+    }
+
+    public void setNeedNegative(boolean needNegative) {
+        this.needNegative = needNegative;
+    }
+
     public List<File> getPairwiseFiles() {
         return getPairwiseFiles(new File(DIR));
     }
@@ -173,7 +182,10 @@ public class HarmonizomePairwiseLoader {
                 if (Math.abs(value) <= cutoff)
                     continue;
                 String rel = InteractionUtilities.generateFIFromGene(tokens[0], genes[i]);
-                if (rel != null)
+                if (rel == null) continue;
+                if (needNegative)
+                    rels.add(rel + "\t" + (value > 0.0d ? "+" : "-"));
+                else
                     rels.add(rel);
             }
         }

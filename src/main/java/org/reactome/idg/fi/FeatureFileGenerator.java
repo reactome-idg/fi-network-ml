@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -19,13 +18,11 @@ import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
-import org.reactome.idg.annotations.FeatureDesc;
 import org.reactome.idg.annotations.FeatureLoader;
 import org.reactome.idg.coexpression.CoExpressionLoader;
 import org.reactome.idg.harmonizome.HarmonizomePairwiseLoader;
 import org.reactome.idg.misc.GOAnnotationShareChecker;
 import org.reactome.idg.misc.ProteinDDIChecker;
-import org.reactome.idg.model.FeatureSource;
 import org.reactome.idg.ppi.MappedPPIDataHandler;
 import org.reactome.idg.util.ApplicationConfig;
 
@@ -36,6 +33,8 @@ import org.reactome.idg.util.ApplicationConfig;
  */
 public class FeatureFileGenerator {
     private static final Logger logger = Logger.getLogger(FeatureFileGenerator.class);
+    // Control if some features should be generated according postive and negative
+    private boolean needNegative = false;
     
     public FeatureFileGenerator() {
     }
@@ -78,6 +77,14 @@ public class FeatureFileGenerator {
         }
     }
     
+    public boolean isNeedNegative() {
+        return needNegative;
+    }
+
+    public void setNeedNegative(boolean needNegative) {
+        this.needNegative = needNegative;
+    }
+
     /**
      * Use this method to create an independent test data set based on non-Reactome FIs.
      * @param trainingFileName: the training data file name used to exclude pairs there.
@@ -240,35 +247,11 @@ public class FeatureFileGenerator {
         loadPPIFeatures(feature2pairs);
         loadMiscFeatures(feature2pairs);
         // Used to sort files
-        Comparator<File> fileSorter = (file1, file2) -> file1.getName().compareTo(file2.getName());
+        Comparator<File> fileSorter = getFileSorter();
         loadHarmonizomeFeatures(feature2pairs, fileSorter);
-        // Get the percentile for coexpression data
-        String coexpPercentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
-        if (coexpPercentile == null || coexpPercentile.length() == 0)
-            coexpPercentile = "0.001";
-        logger.info("Coexpression precentile: " + coexpPercentile);
-        double coexpPercentValue = new Double(coexpPercentile);
-        // GTEx
-        CoExpressionLoader coexpressionHandler = new CoExpressionLoader();
-        List<File> gteFiles = coexpressionHandler.getGTExCoExpressionFiles();
-        gteFiles.sort(fileSorter);
-        logger.info("Loading GTEx features...");
-        loadCoExpFeatures(coexpressionHandler,
-                          gteFiles,
-                          "GTEx",
-                          coexpPercentValue,
-                          feature2pairs);
-        logger.info("GTEx features loading is done.");
+        Double coexpPercentValue = getCoExpressionPercentile();
         // TCGA
-        List<File> tcgaFiles = coexpressionHandler.getTCGACoExpressionFiles();
-        tcgaFiles.sort(fileSorter);
-        logger.info("Loading TCGA features...");
-        loadCoExpFeatures(coexpressionHandler,
-                          tcgaFiles,
-                          null, // Provide by the file name directly
-                          coexpPercentValue,
-                          feature2pairs);
-        logger.info("TCGA features loading is done.");
+        loadTCGACoExpressions(feature2pairs, fileSorter, coexpPercentValue);
         logger.info("Feature loading is done. Total features: " + feature2pairs.size());
         memory = Runtime.getRuntime().totalMemory();
         logger.debug("Total memory after loading all features: " + memory / (1024 * 1024.0d) + " MB.");
@@ -278,8 +261,61 @@ public class FeatureFileGenerator {
         });
         return feature2pairs;
     }
+
+    private Comparator<File> getFileSorter() {
+        return (file1, file2) -> file1.getName().compareTo(file2.getName());
+    }
+
+    private Double getCoExpressionPercentile() {
+        // Get the percentile for coexpression data
+        String coexpPercentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
+        if (coexpPercentile == null || coexpPercentile.length() == 0)
+            coexpPercentile = "0.001";
+        logger.info("Coexpression precentile: " + coexpPercentile);
+        return new Double(coexpPercentile);
+    }
+
+    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"})
+    public void loadTCGACoExpressions(Map<String, Set<String>> feature2pairs,
+                                      Comparator<File> fileSorter,
+                                      Double coexpPercentValue) throws IOException {
+        if (coexpPercentValue == null)
+            coexpPercentValue = getCoExpressionPercentile();
+        fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
+        CoExpressionLoader coexpressionHandler = new CoExpressionLoader();
+        coexpressionHandler.setNeedNegative(needNegative);
+        List<File> tcgaFiles = coexpressionHandler.getTCGACoExpressionFiles();
+        tcgaFiles.sort(fileSorter);
+        logger.info("Loading TCGA features...");
+        loadCoExpFeatures(coexpressionHandler,
+                          tcgaFiles,
+                          null, // Provide by the file name directly
+                          coexpPercentValue,
+                          feature2pairs);
+        logger.info("TCGA features loading is done.");
+    }
     
     @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"})
+    public void loadGTExCoExpressions(Map<String, Set<String>> feature2pairs,
+                                      Comparator<File> fileSorter,
+                                      Double coexpPercentValue) throws IOException {
+        if (coexpPercentValue == null)
+            coexpPercentValue = getCoExpressionPercentile();
+        fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
+        // GTEx
+        CoExpressionLoader coexpressionHandler = new CoExpressionLoader();
+        coexpressionHandler.setNeedNegative(needNegative);
+        List<File> gteFiles = coexpressionHandler.getGTExCoExpressionFiles();
+        gteFiles.sort(fileSorter);
+        logger.info("Loading GTEx features...");
+        loadCoExpFeatures(coexpressionHandler,
+                          gteFiles,
+                          "GTEx",
+                          coexpPercentValue,
+                          feature2pairs);
+        logger.info("GTEx features loading is done.");
+    }
+    
     private void loadCoExpFeatures(CoExpressionLoader loader,
                                    List<File> files,
                                    String featureType,
@@ -298,10 +334,12 @@ public class FeatureFileGenerator {
     }
 
     @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"})
-    private void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
-                                         Comparator<File> fileSorter) throws Exception {
+    public void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
+                                        Comparator<File> fileSorter) throws Exception {
         logger.info("Loading harmonizome features...");
+        fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
         HarmonizomePairwiseLoader harmonizomeHandler = new HarmonizomePairwiseLoader();
+        harmonizomeHandler.setNeedNegative(needNegative);
         Map<File, Double> file2percentile = harmonizomeHandler.getSelectedDownloadFiles();
         List<File> files = file2percentile.keySet()
                 .stream()
@@ -323,7 +361,7 @@ public class FeatureFileGenerator {
 
     @FeatureLoader(methods= {"DomainInteractions,org.reactome.idg.misc.ProteinDDIChecker.loadGenePairsViaDDIs",
                              "GOBPSharing,org.reactome.idg.misc.GOAnnotationShareChecker.loadGenePairsViaGOBPShare"})
-    private void loadMiscFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
+    public void loadMiscFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
         // Domain interaction
         logger.info("Loading domain-domain interactions...");
         ProteinDDIChecker ddiHandler = new ProteinDDIChecker();
@@ -343,7 +381,7 @@ public class FeatureFileGenerator {
             "FlyPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadFlyPPIs",
             "WormPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadWormPPIs",
             "YeastPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadYeastPPIs"})
-    private void loadPPIFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
+    public void loadPPIFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
         // PPI first
         MappedPPIDataHandler ppiHandler = new MappedPPIDataHandler();
         logger.info("Loading HumanPPIs...");
