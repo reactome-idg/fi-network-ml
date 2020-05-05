@@ -10,6 +10,9 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.reactome.data.PfamAnalyzer;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.model.FeatureSource;
+import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 import org.reactome.idg.util.FINetworkBuildConfig;
 
@@ -35,6 +38,8 @@ public class ProteinDDIChecker extends FINetworkBuildConfig {
      * @return about 1.7 million pairs should be expected from this method.
      * @throws Exception
      */
+    @FeatureDesc(sources = {FeatureSource.pFam},
+                 type = FeatureType.Domain_Interaction)
     public Set<String> loadGenePairsViaDDIs() throws IOException {
         Map<String, String> geneToUniprot = ApplicationConfig.getConfig().getGeneToUniProMap();
         List<String> geneList = new ArrayList<>(geneToUniprot.keySet());

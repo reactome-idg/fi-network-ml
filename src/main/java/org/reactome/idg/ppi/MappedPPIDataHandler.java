@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.model.FeatureSource;
+import org.reactome.idg.model.FeatureSpecies;
+import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 
 /**
@@ -27,6 +31,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
     
     @Override
+    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB, FeatureSource.BioPlex},
+                 type = FeatureType.Protein_Interaction)
     public Set<String> loadHumanPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadHumanPPIs();
         logger.info("Total human PPIs from BioGrid: " + bPPIs.size());
@@ -38,6 +44,9 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
     
     @Override
+    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
+                 type = FeatureType.Protein_Interaction,
+                 species = FeatureSpecies.Drosophila_melanogaster)
     public Set<String> loadFlyPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadFlyPPIs();
         logger.info("Total fly PPIs from BioGrid: " + bPPIs.size());
@@ -62,6 +71,9 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
 
     @Override
+    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
+                 type = FeatureType.Protein_Interaction,
+                 species = FeatureSpecies.Saccharomyces_cerevisiae)
     public Set<String> loadYeastPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadYeastPPIs();
         logger.info("Total yeast PPIs from BioGrid: " + bPPIs.size());
@@ -72,6 +84,9 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
 
     @Override
+    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
+                 type = FeatureType.Protein_Interaction,
+                 species = FeatureSpecies.Caenorhabditis_elegans)
     public Set<String> loadWormPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadWormPPIs();
         logger.info("Total worm PPIs from BioGrid: " + bPPIs.size());
@@ -81,6 +96,9 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         return mapMODPPIsToHuman(merged, mapper.loadWormIdToHumanUniProtMap());
     }
 
+    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
+            type = FeatureType.Protein_Interaction,
+            species = FeatureSpecies.Mus_musculus)
     public Set<String> loadMousePPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadMousePPIs();
         logger.info("Total mouse PPIs from BioGrid: " + bPPIs.size());

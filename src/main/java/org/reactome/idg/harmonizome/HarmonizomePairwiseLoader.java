@@ -20,6 +20,9 @@ import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.model.FeatureSource;
+import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 
 /**
@@ -91,6 +94,8 @@ public class HarmonizomePairwiseLoader {
      * @return
      * @throws IOException
      */
+    @FeatureDesc(sources = {FeatureSource.Harmonizome},
+                 type = FeatureType.Gene_Similarity)
     public Set<String> loadPairwisesFromDownload(File file, double percentile) throws Exception {
         File dir = file.getParentFile();
         logger.info("Handling " + file.getName() + "...");

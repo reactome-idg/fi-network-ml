@@ -10,6 +10,9 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.reactome.data.GODataAnalyzerV2;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.model.FeatureSource;
+import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 import org.reactome.idg.util.FINetworkBuildConfig;
 
@@ -34,6 +37,8 @@ public class GOAnnotationShareChecker extends FINetworkBuildConfig {
      * @return about 1.7 million pairs should be expected from this method.
      * @throws Exception
      */
+    @FeatureDesc(sources = {FeatureSource.GO},
+                 type = FeatureType.GO_BP_Sharing)
     public Set<String> loadGenePairsViaGOBPShare() throws IOException {
         Map<String, String> geneToUniprot = ApplicationConfig.getConfig().getGeneToUniProMap();
         List<String> geneList = new ArrayList<>(geneToUniprot.keySet());

@@ -2,22 +2,30 @@ package org.reactome.idg.fi;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.annotations.FeatureLoader;
 import org.reactome.idg.coexpression.CoExpressionLoader;
 import org.reactome.idg.harmonizome.HarmonizomePairwiseLoader;
 import org.reactome.idg.misc.GOAnnotationShareChecker;
 import org.reactome.idg.misc.ProteinDDIChecker;
+import org.reactome.idg.model.FeatureSource;
 import org.reactome.idg.ppi.MappedPPIDataHandler;
 import org.reactome.idg.util.ApplicationConfig;
 
@@ -34,7 +42,7 @@ public class FeatureFileGenerator {
     
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("java -Xmx16G -jar XXX {check_features|generate_matrix} {out_file}");
+            System.err.println("java -Xmx16G -jar XXX {check_features|generate_matrix|generate_test_matrix} {out_file} {training_file}");
             System.exit(1);
         }
         if (args[0].equals("check_features")) {
@@ -52,30 +60,133 @@ public class FeatureFileGenerator {
             catch(Exception e) {
                 logger.error(e.getMessage(), e);
             }
+            return;
+        }
+        if (args[0].equals("generate_test_matrix")) {
+            if (args.length < 3) {
+                System.err.println("Please provide a file name for output and the file name for"
+                        + " the training data generated from the generate_matrix running.");
+                System.exit(1);
+            }
+            try {
+                new FeatureFileGenerator().buildFeatureMatrixForTest(args[2], args[1]);
+            }
+            catch(Exception e) {
+                logger.error(e.getMessage(), e);
+            }
+            return;
         }
     }
     
     /**
-     * Dump the feature file into a tab-delimited matrix file.
+     * Use this method to create an independent test data set based on non-Reactome FIs.
+     * @param trainingFileName: the training data file name used to exclude pairs there.
+     * @param outFileName
+     * @throws Exception
+     */
+    public void buildFeatureMatrixForTest(String trainingFileName,
+                                          String outFileName) throws Exception {
+        // Load all pairs in the training data set. Since random pairs are used as negative,
+        // different training data set may be different.
+        Set<String> excludedPairs = null;
+        try (Stream<String> lines = Files.lines(Paths.get(trainingFileName))) {
+            excludedPairs = lines.skip(1)
+                                 .map(line -> line.split(",")[0])
+                                 .collect(Collectors.toSet());
+        }
+        logger.info("Total pairs that loaded from the training data and will be excluded: " + excludedPairs.size());
+        // The following steps are very similar to ones used to generate the training dataset.
+        // The only difference is that pairs from the training data sets will be removed.
+        Map<String, Set<String>> feature2pairs = loadAllFeatures();
+        Set<String> nonReactomeFIs = ApplicationConfig.getConfig().loadNonReactomeFIsInGenes();
+        logger.info("Total non-Reactome FIs: " + nonReactomeFIs.size());
+        buildFeatureMatrix(nonReactomeFIs,
+                           excludedPairs, 
+                           feature2pairs,
+                           outFileName);
+        logger.info("All done. The output is in: " + outFileName);
+    }
+    
+    /**
+     * Dump the feature file into a tab-delimited matrix file. This method is used to 
+     * create the training data set.
      * Note: The output is "," delimited to avoid replace FI's tab!
      * @param outFileName
      * @throws Exception
      */
     public void buildFeatureMatrix(String outFileName) throws Exception {
-        logger.info("Loading all features...");
-        long memory = Runtime.getRuntime().totalMemory();
-        logger.info("Total memory before loading all features: " + memory / (1024 * 1024.0d) + " MB.");
         Map<String, Set<String>> featureToPairs = loadAllFeatures();
-        logger.info("Feature loading is done. Total features: " + featureToPairs.size());
-        memory = Runtime.getRuntime().totalMemory();
-        logger.info("Total memory after loading all features: " + memory / (1024 * 1024.0d) + " MB.");
-        // Check the features
-        featureToPairs.forEach((feature, pair) -> {
-            logger.info(feature + ": " + pair.size());
-        });
         // Positive training data set
         Set<String> reactomeFIs = ApplicationConfig.getConfig().loadReactomeFIsInGenes();
         logger.info("Total Reactome FIs: " + reactomeFIs.size()); 
+        buildFeatureMatrix(reactomeFIs, 
+                           new HashSet<>(),
+                           featureToPairs, 
+                           outFileName);
+        logger.info("All done!");
+    }
+
+    private void buildFeatureMatrix(Set<String> fis, 
+                                   Set<String> toBeExcluded, // FIs in this set should not be used for both positive and negative sets
+                                   Map<String, Set<String>> featureToPairs, 
+                                   String outFileName) throws IOException {
+        logger.info("Total FIs passed into the method: " + fis.size());
+        boolean isChanged = fis.removeAll(toBeExcluded);
+        logger.info("Filter by removing in toBeExcluded: " + fis.size());
+        if (isChanged) {
+            // Check left gene ids
+            Set<String> genes = InteractionUtilities.grepIDsFromInteractions(fis);
+            logger.info("Total ids left after removing excluded pairs: " + genes.size());
+        }
+        filterFIsToOneFeatureMinimum(featureToPairs, fis);
+        logger.info("Start dumping...");
+        // Let's start dump
+        FileUtility fu = new FileUtility();
+        fu.setOutput(outFileName);
+        // Generate the header
+        // Make sure we have a fixed order
+        List<String> features = new ArrayList<>(featureToPairs.keySet());
+        StringBuilder builder = new StringBuilder();
+        builder.append("GenePair,FI");
+        features.forEach(feature -> builder.append(",").append(feature));
+        fu.printLine(builder.toString());
+        builder.setLength(0);
+        for (String fi : fis) {
+            builder.append(fi).append(",1"); // 1 for true, 0 for false
+            for (String feature : features) {
+                Set<String> pairs = featureToPairs.get(feature);
+                builder.append(",").append(pairs.contains(fi) ? "1" : "0");
+            }
+            fu.printLine(builder.toString());
+            builder.setLength(0);
+        }
+        // Random pairs as negative data set
+        Set<String> geneIds = InteractionUtilities.grepIDsFromInteractions(fis);
+        String ratio = ApplicationConfig.getConfig().getAppConfig("negative.to.positive.ratio");
+        if (ratio == null || ratio.length() == 0)
+            ratio = "100";
+        Set<String> randomPairs = InteractionUtilities.generateRandomPairs(geneIds,
+                                                                           (int)(fis.size() * Double.parseDouble(ratio)), 
+                                                                           fis);
+        logger.info("Total random pairs as the negative dataset: " + randomPairs.size());
+        randomPairs.removeAll(toBeExcluded);
+        logger.info("Total random pairs after removing pairs in tobeRemoved: " + randomPairs.size());
+        // As noted in the original FINetworkContruction project, we will not do filtering for the negative
+        // data set. (see in class NBCAnalyzer.java).
+        for (String fi : randomPairs) {
+            builder.append(fi).append(",0"); // 1 for true, 0 for false
+            for (String feature : features) {
+                Set<String> pairs = featureToPairs.get(feature);
+                builder.append(",").append(pairs.contains(fi) ? "1" : "0");
+            }
+            fu.printLine(builder.toString());
+            builder.setLength(0);
+        }
+        fu.close();
+    }
+
+    private void filterFIsToOneFeatureMinimum(Map<String, Set<String>> featureToPairs, Set<String> reactomeFIs) {
+        logger.info("Total Fis before filtering: " + reactomeFIs.size());
         // Filter FIs that don't have any positive feature since these FIs will not contribute
         // anything to the training
         boolean isValid = false;
@@ -93,50 +204,7 @@ public class FeatureFileGenerator {
                 continue;
             it.remove();
         }
-        logger.info("Total Reactome FIs after filtering FIs having no feature: " + reactomeFIs.size());
-        logger.info("Start dumping...");
-        // Let's start dump
-        FileUtility fu = new FileUtility();
-        fu.setOutput(outFileName);
-        // Generate the header
-        // Make sure we have a fixed order
-        List<String> features = new ArrayList<>(featureToPairs.keySet());
-        StringBuilder builder = new StringBuilder();
-        builder.append("GenePair,FI");
-        features.forEach(feature -> builder.append(",").append(feature));
-        fu.printLine(builder.toString());
-        builder.setLength(0);
-        for (String fi : reactomeFIs) {
-            builder.append(fi).append(",1"); // 1 for true, 0 for false
-            for (String feature : features) {
-                Set<String> pairs = featureToPairs.get(feature);
-                builder.append(",").append(pairs.contains(fi) ? "1" : "0");
-            }
-            fu.printLine(builder.toString());
-            builder.setLength(0);
-        }
-        // Random pairs as negative data set
-        Set<String> geneIds = InteractionUtilities.grepIDsFromInteractions(reactomeFIs);
-        String ratio = ApplicationConfig.getConfig().getAppConfig("negative.to.positive.ratio");
-        if (ratio == null || ratio.length() == 0)
-            ratio = "100";
-        Set<String> randomPairs = InteractionUtilities.generateRandomPairs(geneIds,
-                                                                           (int)(reactomeFIs.size() * Double.parseDouble(ratio)), 
-                                                                           reactomeFIs);
-        logger.info("Total random pairs as the negative dataset: " + randomPairs.size());
-        // As noted in the original FINetworkContruction project, we will not do filtering for the negative
-        // data set. (see in class NBCAnalyzer.java).
-        for (String fi : randomPairs) {
-            builder.append(fi).append(",0"); // 1 for true, 0 for false
-            for (String feature : features) {
-                Set<String> pairs = featureToPairs.get(feature);
-                builder.append(",").append(pairs.contains(fi) ? "1" : "0");
-            }
-            fu.printLine(builder.toString());
-            builder.setLength(0);
-        }
-        fu.close();
-        logger.info("All done!");
+        logger.info("Total FIs after filtering FIs having no feature: " + reactomeFIs.size());
     }
     
     public void checkFeatures() {
@@ -163,6 +231,9 @@ public class FeatureFileGenerator {
      * @throws IOException
      */
     public Map<String, Set<String>> loadAllFeatures() throws Exception {
+        logger.debug("Loading all features...");
+        long memory = Runtime.getRuntime().totalMemory();
+        logger.debug("Total memory before loading all features: " + memory / (1024 * 1024.0d) + " MB.");
         // We want to control the order of the insertion. Therefore, 
         // a LinkedHashMap, instead of a usual HashMap, is used here.
         Map<String, Set<String>> feature2pairs = new LinkedHashMap<>();
@@ -198,9 +269,17 @@ public class FeatureFileGenerator {
                           coexpPercentValue,
                           feature2pairs);
         logger.info("TCGA features loading is done.");
+        logger.info("Feature loading is done. Total features: " + feature2pairs.size());
+        memory = Runtime.getRuntime().totalMemory();
+        logger.debug("Total memory after loading all features: " + memory / (1024 * 1024.0d) + " MB.");
+        // Check the features
+        feature2pairs.forEach((feature, pair) -> {
+            logger.info(feature + ": " + pair.size());
+        });
         return feature2pairs;
     }
     
+    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"})
     private void loadCoExpFeatures(CoExpressionLoader loader,
                                    List<File> files,
                                    String featureType,
@@ -218,8 +297,9 @@ public class FeatureFileGenerator {
         }
     }
 
-    private Comparator<File> loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
-                                                     Comparator<File> fileSorter) throws Exception {
+    @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"})
+    private void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
+                                         Comparator<File> fileSorter) throws Exception {
         logger.info("Loading harmonizome features...");
         HarmonizomePairwiseLoader harmonizomeHandler = new HarmonizomePairwiseLoader();
         Map<File, Double> file2percentile = harmonizomeHandler.getSelectedDownloadFiles();
@@ -234,13 +314,15 @@ public class FeatureFileGenerator {
             String feature = file.getName();
             feature = feature.split("\\.")[0]; // We only need the first part as our feature name
             Set<String> pairs = harmonizomeHandler.loadPairwisesFromDownload(file, percentile);
-            feature2pairs.put(feature, pairs);
+            // Make sure the feature name starting with Harmonizome to downstream analysis
+            feature2pairs.put("Harmonizome-" + feature, pairs);
             logger.info("Done.");
         }
         logger.info("Harmonizome features loading is done.");
-        return fileSorter;
     }
 
+    @FeatureLoader(methods= {"DomainInteractions,org.reactome.idg.misc.ProteinDDIChecker.loadGenePairsViaDDIs",
+                             "GOBPSharing,org.reactome.idg.misc.GOAnnotationShareChecker.loadGenePairsViaGOBPShare"})
     private void loadMiscFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
         // Domain interaction
         logger.info("Loading domain-domain interactions...");
@@ -256,6 +338,11 @@ public class FeatureFileGenerator {
         logger.info("Done.");
     }
 
+    @FeatureLoader(methods= {"HumanPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadHumanPPIs",
+            "mousePPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadMousePPIs",
+            "FlyPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadFlyPPIs",
+            "WormPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadWormPPIs",
+            "YeastPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadYeastPPIs"})
     private void loadPPIFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
         // PPI first
         MappedPPIDataHandler ppiHandler = new MappedPPIDataHandler();
@@ -280,6 +367,5 @@ public class FeatureFileGenerator {
         feature2pairs.put("YeatPPI", yeastPPIs);
         logger.info("Done.");
     }
-    
     
 }

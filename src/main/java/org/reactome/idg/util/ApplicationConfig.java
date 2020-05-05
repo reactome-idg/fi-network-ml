@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -119,8 +120,25 @@ public class ApplicationConfig {
         return fiConfig;
     }
     
+    public Set<String> loadNonReactomeFIsInGenes() throws Exception {
+        String fileNames = getConfig().getAppConfig("non.reactome.fi.uniprot.files");
+        Set<String> fis = new HashSet<>();
+        for (String fileName : fileNames.split(",")) {
+            logger.info("Loading FIs in " + fileName);
+            Set<String> fisInGenes = loadFIsInGenes(fileName.trim());
+            if (fisInGenes != null)
+                fis.addAll(fisInGenes);
+        }
+        logger.info("Total loaded non-Reactome FIs in genes: " + fis.size());
+        return fis;
+    }
+    
     public Set<String> loadReactomeFIsInGenes() throws IOException {
         String fileName = getConfig().getAppConfig("reactome.fi.uniprot.file");
+        return loadFIsInGenes(fileName);
+    }
+
+    public Set<String> loadFIsInGenes(String fileName) throws IOException {
         InputStream is = getInputStream(fileName);
         if (is == null) {
             logger.error("Cannot find file: " + fileName);
@@ -129,7 +147,7 @@ public class ApplicationConfig {
         BufferedReader br = new BufferedReader(new InputStreamReader(is));
         List<String> fis = br.lines().collect(Collectors.toList());
         br.close();
-        logger.info("Total loaded Reactome FIs in UniProt: " + fis.size());
+        logger.info("Total loaded FIs in UniProt: " + fis.size());
         return mapFIsInUniProtToGenes(fis);
     }
     

@@ -16,6 +16,9 @@ import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
+import org.reactome.idg.annotations.FeatureDesc;
+import org.reactome.idg.model.FeatureSource;
+import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 
 /**
@@ -120,6 +123,8 @@ public class CoExpressionLoader {
      * @return
      * @throws IOException
      */
+    @FeatureDesc(sources = {FeatureSource.GTEx, FeatureSource.TCGA},
+                 type = FeatureType.Gene_Coexpression)
     public Set<String> loadCoExpressionViaPercentile(File file, Double percentile) throws IOException {
         if (percentile == null)
             throw new IllegalArgumentException("Percentile should not be null!");
