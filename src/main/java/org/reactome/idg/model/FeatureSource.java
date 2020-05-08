@@ -15,6 +15,7 @@ public enum FeatureSource {
     Harmonizome,
     pFam,
     GTEx,
-    TCGA
+    TCGA,
+    UNDEFINED // Used as null
 
 }

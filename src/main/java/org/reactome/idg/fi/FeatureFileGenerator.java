@@ -23,6 +23,7 @@ import org.reactome.idg.coexpression.CoExpressionLoader;
 import org.reactome.idg.harmonizome.HarmonizomePairwiseLoader;
 import org.reactome.idg.misc.GOAnnotationShareChecker;
 import org.reactome.idg.misc.ProteinDDIChecker;
+import org.reactome.idg.model.FeatureSource;
 import org.reactome.idg.ppi.MappedPPIDataHandler;
 import org.reactome.idg.util.ApplicationConfig;
 
@@ -266,7 +267,7 @@ public class FeatureFileGenerator {
         return (file1, file2) -> file1.getName().compareTo(file2.getName());
     }
 
-    private Double getCoExpressionPercentile() {
+    public Double getCoExpressionPercentile() {
         // Get the percentile for coexpression data
         String coexpPercentile = ApplicationConfig.getConfig().getAppConfig("coexpression.percentile");
         if (coexpPercentile == null || coexpPercentile.length() == 0)
@@ -274,9 +275,14 @@ public class FeatureFileGenerator {
         logger.info("Coexpression precentile: " + coexpPercentile);
         return new Double(coexpPercentile);
     }
+    
+    public void loadTCGACoExpressions(Map<String, Set<String>> feature2pairs) throws IOException {
+        loadTCGACoExpressions(feature2pairs, null, null);
+    }
 
-    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"})
-    public void loadTCGACoExpressions(Map<String, Set<String>> feature2pairs,
+    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"},
+                   source = FeatureSource.TCGA)
+    private void loadTCGACoExpressions(Map<String, Set<String>> feature2pairs,
                                       Comparator<File> fileSorter,
                                       Double coexpPercentValue) throws IOException {
         if (coexpPercentValue == null)
@@ -295,8 +301,13 @@ public class FeatureFileGenerator {
         logger.info("TCGA features loading is done.");
     }
     
-    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"})
-    public void loadGTExCoExpressions(Map<String, Set<String>> feature2pairs,
+    public void loadGTExCoExpressions(Map<String, Set<String>> feature2pairs) throws IOException {
+        loadGTExCoExpressions(feature2pairs, null, null);
+    }
+    
+    @FeatureLoader(methods = {"org.reactome.idg.coexpression.CoExpressionLoader.loadCoExpressionViaPercentile"},
+                   source = FeatureSource.GTEx)
+    private void loadGTExCoExpressions(Map<String, Set<String>> feature2pairs,
                                       Comparator<File> fileSorter,
                                       Double coexpPercentValue) throws IOException {
         if (coexpPercentValue == null)
@@ -332,9 +343,14 @@ public class FeatureFileGenerator {
             logger.info("Done.");
         }
     }
+    
+    public void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs) throws Exception {
+        loadHarmonizomeFeatures(feature2pairs, null);
+    }
 
-    @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"})
-    public void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
+    @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"},
+                   source = FeatureSource.Harmonizome)
+    private void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
                                         Comparator<File> fileSorter) throws Exception {
         logger.info("Loading harmonizome features...");
         fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
@@ -376,11 +392,11 @@ public class FeatureFileGenerator {
         logger.info("Done.");
     }
 
-    @FeatureLoader(methods= {"HumanPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadHumanPPIs",
-            "mousePPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadMousePPIs",
-            "FlyPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadFlyPPIs",
-            "WormPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadWormPPIs",
-            "YeastPPIs,org.reactome.idg.ppi.MappedPPIDataHandler.loadYeastPPIs"})
+    @FeatureLoader(methods= {"HumanPPI,org.reactome.idg.ppi.MappedPPIDataHandler.loadHumanPPIs",
+                             "MousePPI,org.reactome.idg.ppi.MappedPPIDataHandler.loadMousePPIs",
+                             "FlyPPI,org.reactome.idg.ppi.MappedPPIDataHandler.loadFlyPPIs",
+                             "WormPPI,org.reactome.idg.ppi.MappedPPIDataHandler.loadWormPPIs",
+                             "YeastPPI,org.reactome.idg.ppi.MappedPPIDataHandler.loadYeastPPIs"})
     public void loadPPIFeatures(Map<String, Set<String>> feature2pairs) throws IOException {
         // PPI first
         MappedPPIDataHandler ppiHandler = new MappedPPIDataHandler();
@@ -402,7 +418,7 @@ public class FeatureFileGenerator {
         logger.info("Done.");
         logger.info("Loading YeastPPIs...");
         Set<String> yeastPPIs = ppiHandler.loadYeastPPIs();
-        feature2pairs.put("YeatPPI", yeastPPIs);
+        feature2pairs.put("YeastPPI", yeastPPIs);
         logger.info("Done.");
     }
     

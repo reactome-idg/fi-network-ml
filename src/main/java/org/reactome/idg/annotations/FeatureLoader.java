@@ -3,6 +3,10 @@ package org.reactome.idg.annotations;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+import org.reactome.idg.model.FeatureSource;
+
+import net.bytebuddy.dynamic.loading.PackageDefinitionStrategy.Definition.Undefined;
+
 /**
  * Methods annotated with this Annotation are used to load features for ML.
  * @author wug
@@ -20,4 +24,8 @@ public @interface FeatureLoader {
      */
     String[] methods();
     
+    /**
+     * Use feature source. Default is null.
+     */
+    FeatureSource source() default FeatureSource.UNDEFINED;
 }

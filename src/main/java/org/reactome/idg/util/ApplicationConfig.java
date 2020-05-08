@@ -31,7 +31,7 @@ public class ApplicationConfig {
     private FIConfiguration fiConfig;
     
     private ApplicationConfig() {
-        load();
+        loadProps(APPLICATION_CONFIG);
     }
     
     public static ApplicationConfig getConfig() {
@@ -44,12 +44,16 @@ public class ApplicationConfig {
         return appConfig.getProperty(propName);
     }
 
-    private void load() {
+    /**
+     * Expose this loading method so that we can switch to another configuration file.
+     * @param fileName
+     */
+    public void loadProps(String fileName) {
         try {
             appConfig = new Properties();
-            InputStream is = getInputStream(APPLICATION_CONFIG);
+            InputStream is = getInputStream(fileName);
             if (is == null) {
-                logger.warn("Cannot find the configuration file: " + APPLICATION_CONFIG);
+                logger.warn("Cannot find the configuration file: " + fileName);
             }
             else {
                 appConfig.load(is);
