@@ -29,7 +29,9 @@
 							<archive>
 								<manifest>
 <!-- 									<mainClass>org.reactome.idg.harmonizome.DataDownloader</mainClass> -->
-									<mainClass>org.reactome.idg.coexpression.CoExpressionAnalyzer</mainClass>
+<!-- 									<mainClass>org.reactome.idg.coexpression.CoExpressionAnalyzer</mainClass> -->
+<!-- 									<mainClass>org.reactome.idg.fi.FeaturesCheckers</mainClass> -->
+									<mainClass>org.reactome.idg.fi.FeatureFileGenerator</mainClass>
 								</manifest>
 							</archive>
 							<descriptorRefs>
@@ -158,6 +160,26 @@
 			</exclusions>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+		<plugin>
+			<groupId>org.apache.maven.plugins</groupId>
+			<artifactId>maven-jar-plugin</artifactId>
+			<version>2.3.1</version>
+			<configuration>
+			    <!-- Don't export the configuration file is this jar
+			    is used in other place. Otherwise, the application.properties
+			    will be expanded and overwrite other projects' setting if built 
+			    for a runnable jar. -->
+				<excludes>
+					<exclude>**/application.properties</exclude>
+				</excludes>
+			</configuration>
+		</plugin>
+		</plugins>
+	</build>
+	
 	<repositories>
 		<!-- EBI repo -->
 		<repository>
