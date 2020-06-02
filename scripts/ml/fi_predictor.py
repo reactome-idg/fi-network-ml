@@ -232,3 +232,36 @@ prd = clf.predict(X_val)
 clf.score(X_val, y_val)
 roc_auc_score(y_val, prd)
 # 0.8877285851659766
+
+# ------------------------------------------------------------------------------
+# misc. info fetch 
+# ------------------------------------------------------------------------------
+def match(row):
+  if row['FI'] == 1:
+    m = row[1]
+  else: 
+    m = row[0]      
+  return m 
+
+
+l2 = []
+features = X_val.columns.copy()
+for col in features:
+  print(col)
+  X_temp = X_val.copy()
+  X_temp.iloc[:, ~features.isin([col])] = -1
+  prd_temp = clf.predict_proba(X_temp)
+
+  df_temp = pandas.DataFrame(prd_temp)
+  df_temp['FI'] = df.FI.values
+  df_temp['proba'] = df_temp.apply(match, axis=1)
+  l2.append(df_temp['proba'])
+l2
+
+final_df = pandas.concat(l2, axis=1, ignore_index=True)
+final_df.columns = X_val.columns.copy()
+final_df.index = df.index
+# row_median = final_df.median(axis=1)
+# col_median = final_df.median(axis=0)
+# final_df.sum(axis=0)
+final_df.to_csv("prediction_probabilities_zero_out_features_RF89_2.csv", index=False)
