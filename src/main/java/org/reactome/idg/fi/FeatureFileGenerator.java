@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
+import org.junit.Test;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
 import org.reactome.idg.annotations.FeatureLoader;
@@ -38,6 +39,44 @@ public class FeatureFileGenerator {
     private boolean needNegative = false;
     
     public FeatureFileGenerator() {
+    }
+    
+    /**
+     * This method is used to generate a file having one feature is positive only.
+     * @throws IOException
+     */
+    @Test
+    public void generateSingleFeatureFile() throws IOException {
+        String featureFile = "results/feature_files/test/feature_test_matrix_051120.csv";
+        String outFile = "results/feature_files/prediction/single_feature_file_060320.csv";
+        FileUtility fu = new FileUtility();
+        fu.setInput(featureFile);
+        fu.setOutput(outFile);
+        String line = fu.readLine();
+        String[] tokens = line.split(",");
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < tokens.length; i++) {
+            if (i == 1)
+                continue;
+            builder.append(tokens[i]).append(",");
+        }
+        builder.deleteCharAt(builder.length() - 1);
+        fu.printLine(builder.toString());
+        builder.setLength(0);
+        int length = tokens.length - 2; // Don't need the first and second columns
+        for (int i = 0; i < length; i++) {
+            builder.append("FI" + i);
+            for (int j = 0; j < length; j++) {
+                builder.append(",");
+                if (i == j)
+                    builder.append("1");
+                else
+                    builder.append("0");
+            }
+            fu.printLine(builder.toString());
+            builder.setLength(0);
+        }
+        fu.close();
     }
     
     public static void main(String[] args) {
