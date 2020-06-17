@@ -81,7 +81,7 @@ public class FeatureFileGenerator {
     
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("java -Xmx16G -jar XXX {check_features|generate_matrix|generate_test_matrix} {out_file} {training_file}");
+            System.err.println("java -Xmx48G -jar XXX {check_features|generate_matrix|generate_test_matrix|generate_prediction_file} {out_file} {training_file}");
             System.exit(1);
         }
         if (args[0].equals("check_features")) {
@@ -115,6 +115,78 @@ public class FeatureFileGenerator {
             }
             return;
         }
+        // Generate a file used for prediction. FIs extracted from Reactome and other
+        // pathway databases are not excluded in the final output so that they can be used
+        // as an internal control.
+        if (args[0].equals("generate_prediction_file")) {
+            if (args.length < 2) {
+                System.err.println("Please provide a file name for output.");
+                System.exit(1);
+            }
+            try {
+                new FeatureFileGenerator().generatePredictionFile(args[1]);
+            }
+            catch(Exception e) {
+                logger.error(e.getMessage(), e);
+            }
+        }
+    }
+    
+    public void generatePredictionFile(String outFileName) throws Exception {
+        logger.info("Loading all features...");
+        Map<String, Set<String>> feature2pairs = loadAllFeatures();
+        logger.info("All features have been loaded.");
+        // Need to collect all genes in the features
+        List<String> allGenes = feature2pairs.values()
+                                             .stream()
+                                             .flatMap(v -> v.stream())
+                                             .map(pair -> pair.split("\t"))
+                                             .flatMap(genes -> Stream.of(genes))
+                                             .distinct() // Avoid duplication
+                                             .sorted()
+                                             .collect(Collectors.toList());
+        logger.info("Total genes collected from all features: " + allGenes.size());
+        logger.info("Starting generating the predict file...");
+        // Pair-wise generations
+        FileUtility fu = new FileUtility();
+        fu.setOutput(outFileName);
+        StringBuilder builder = new StringBuilder();
+        builder.append("GenePair");
+        List<String> features = new ArrayList<>(feature2pairs.keySet());
+        features.stream().forEach(feature -> builder.append(",").append(feature));
+        fu.printLine(builder.toString());
+        builder.setLength(0);
+        // All genes have been sorted
+        boolean isNeeded = false;
+        int count = 0;
+        for (int i = 0; i < allGenes.size() - 1; i++) {
+            String gene1 = allGenes.get(i);
+            for (int j = i + 1; j < allGenes.size(); j++) {
+                String gene2 = allGenes.get(j);
+                String pair = gene1 + "\t" + gene2;
+                builder.append(pair);
+                isNeeded = false;
+                for (String feature : features) {
+                    Set<String> pairs = feature2pairs.get(feature);
+                    builder.append(",");
+                    if (pairs.contains(pair)) {
+                        isNeeded = true;
+                        builder.append("1");
+                    }
+                    else
+                        builder.append("0");
+                }
+                // We will collect genes having at least one feature
+                if (isNeeded) {// This check should be reliable
+                    fu.printLine(builder.toString());
+                    count ++;
+                }
+                builder.setLength(0);
+            }
+        }
+        fu.close();
+        logger.info("Done. Output in file " + outFileName);
+        logger.info("Total pairs having at least one feature: " + count);
     }
     
     public boolean isNeedNegative() {
