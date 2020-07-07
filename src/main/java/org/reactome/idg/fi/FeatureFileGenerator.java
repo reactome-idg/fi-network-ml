@@ -37,6 +37,9 @@ public class FeatureFileGenerator {
     private static final Logger logger = Logger.getLogger(FeatureFileGenerator.class);
     // Control if some features should be generated according postive and negative
     private boolean needNegative = false;
+    // Originally Harmonizome- is not added to features for ML. However, for the 
+    // idg.reactome.org, we need to add this. Therefore, we have this flag
+    private boolean prefixHarmonizomeInFeature = false;
     
     public FeatureFileGenerator() {
     }
@@ -195,6 +198,14 @@ public class FeatureFileGenerator {
 
     public void setNeedNegative(boolean needNegative) {
         this.needNegative = needNegative;
+    }
+
+    public boolean isPrefixHarmonizomeInFeature() {
+        return prefixHarmonizomeInFeature;
+    }
+
+    public void setPrefixHarmonizomeInFeature(boolean prefixHarmonizomeInFeature) {
+        this.prefixHarmonizomeInFeature = prefixHarmonizomeInFeature;
     }
 
     /**
@@ -362,6 +373,8 @@ public class FeatureFileGenerator {
         Comparator<File> fileSorter = getFileSorter();
         loadHarmonizomeFeatures(feature2pairs, fileSorter);
         Double coexpPercentValue = getCoExpressionPercentile();
+        // GTEx
+        loadGTExCoExpressions(feature2pairs, fileSorter, coexpPercentValue);
         // TCGA
         loadTCGACoExpressions(feature2pairs, fileSorter, coexpPercentValue);
         logger.info("Feature loading is done. Total features: " + feature2pairs.size());
@@ -462,7 +475,7 @@ public class FeatureFileGenerator {
     @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"},
                    source = FeatureSource.Harmonizome)
     private void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
-                                        Comparator<File> fileSorter) throws Exception {
+                                         Comparator<File> fileSorter) throws Exception {
         logger.info("Loading harmonizome features...");
         fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
         HarmonizomePairwiseLoader harmonizomeHandler = new HarmonizomePairwiseLoader();
@@ -480,7 +493,9 @@ public class FeatureFileGenerator {
             feature = feature.split("\\.")[0]; // We only need the first part as our feature name
             Set<String> pairs = harmonizomeHandler.loadPairwisesFromDownload(file, percentile);
             // Make sure the feature name starting with Harmonizome to downstream analysis
-            feature2pairs.put("Harmonizome-" + feature, pairs);
+            if (prefixHarmonizomeInFeature)
+                feature = "Harmonizome-" + feature;
+            feature2pairs.put(feature, pairs);
             logger.info("Done.");
         }
         logger.info("Harmonizome features loading is done.");
