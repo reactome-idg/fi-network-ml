@@ -18,6 +18,10 @@ public class StringDBHandler extends PPIDataHandler {
     public StringDBHandler() {
     }
     
+    /**
+     * Gene names are directly loaded into the set. So there is no need for mapping. However,
+     * UniProt ids are used for non-human species.
+     */
     public Set<String> loadHumanPPIs() throws IOException {
         String ppiFile = DIR + File.separator + config.getAppConfig("stringdb.human.file");
         String mapFile = DIR + File.separator + config.getAppConfig("stringdb.human.map");

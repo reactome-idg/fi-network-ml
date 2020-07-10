@@ -186,7 +186,10 @@ public class ApplicationConfig {
         }
         // Try to use the resource
         InputStream is = ApplicationConfig.class.getClassLoader().getResourceAsStream(fileName);
-        return is; // We have done our best.
+        if (is != null) {
+            logger.info("Get " + fileName + " via the ClassLoader.");
+        }
+        return is; // We have done our best. This may be null.
     }
     
 }

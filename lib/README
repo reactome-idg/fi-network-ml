@@ -1,3 +1,5 @@
 All jar files in this folder should be added into the local maven repository before these jar files can be placed into a central maven repo for sharing.
 groupId		artifactId		version		jar_name
 org.reactome.fi		foundation		1.0.0		foundation-1.0.0.jar
+org.reactome.fi		build		1.0.1		build-1.0.1.jar
+

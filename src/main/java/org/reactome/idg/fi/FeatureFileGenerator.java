@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
+import org.junit.Test;
 import org.reactome.fi.util.FileUtility;
 import org.reactome.fi.util.InteractionUtilities;
 import org.reactome.idg.annotations.FeatureLoader;
@@ -36,13 +37,54 @@ public class FeatureFileGenerator {
     private static final Logger logger = Logger.getLogger(FeatureFileGenerator.class);
     // Control if some features should be generated according postive and negative
     private boolean needNegative = false;
+    // Originally Harmonizome- is not added to features for ML. However, for the 
+    // idg.reactome.org, we need to add this. Therefore, we have this flag
+    private boolean prefixHarmonizomeInFeature = false;
     
     public FeatureFileGenerator() {
     }
     
+    /**
+     * This method is used to generate a file having one feature is positive only.
+     * @throws IOException
+     */
+    @Test
+    public void generateSingleFeatureFile() throws IOException {
+        String featureFile = "results/feature_files/test/feature_test_matrix_051120.csv";
+        String outFile = "results/feature_files/prediction/single_feature_file_060320.csv";
+        FileUtility fu = new FileUtility();
+        fu.setInput(featureFile);
+        fu.setOutput(outFile);
+        String line = fu.readLine();
+        String[] tokens = line.split(",");
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < tokens.length; i++) {
+            if (i == 1)
+                continue;
+            builder.append(tokens[i]).append(",");
+        }
+        builder.deleteCharAt(builder.length() - 1);
+        fu.printLine(builder.toString());
+        builder.setLength(0);
+        int length = tokens.length - 2; // Don't need the first and second columns
+        for (int i = 0; i < length; i++) {
+            builder.append("FI" + i);
+            for (int j = 0; j < length; j++) {
+                builder.append(",");
+                if (i == j)
+                    builder.append("1");
+                else
+                    builder.append("0");
+            }
+            fu.printLine(builder.toString());
+            builder.setLength(0);
+        }
+        fu.close();
+    }
+    
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("java -Xmx16G -jar XXX {check_features|generate_matrix|generate_test_matrix} {out_file} {training_file}");
+            System.err.println("java -Xmx48G -jar XXX {check_features|generate_matrix|generate_test_matrix|generate_prediction_file} {out_file} {training_file}");
             System.exit(1);
         }
         if (args[0].equals("check_features")) {
@@ -76,6 +118,78 @@ public class FeatureFileGenerator {
             }
             return;
         }
+        // Generate a file used for prediction. FIs extracted from Reactome and other
+        // pathway databases are not excluded in the final output so that they can be used
+        // as an internal control.
+        if (args[0].equals("generate_prediction_file")) {
+            if (args.length < 2) {
+                System.err.println("Please provide a file name for output.");
+                System.exit(1);
+            }
+            try {
+                new FeatureFileGenerator().generatePredictionFile(args[1]);
+            }
+            catch(Exception e) {
+                logger.error(e.getMessage(), e);
+            }
+        }
+    }
+    
+    public void generatePredictionFile(String outFileName) throws Exception {
+        logger.info("Loading all features...");
+        Map<String, Set<String>> feature2pairs = loadAllFeatures();
+        logger.info("All features have been loaded.");
+        // Need to collect all genes in the features
+        List<String> allGenes = feature2pairs.values()
+                                             .stream()
+                                             .flatMap(v -> v.stream())
+                                             .map(pair -> pair.split("\t"))
+                                             .flatMap(genes -> Stream.of(genes))
+                                             .distinct() // Avoid duplication
+                                             .sorted()
+                                             .collect(Collectors.toList());
+        logger.info("Total genes collected from all features: " + allGenes.size());
+        logger.info("Starting generating the predict file...");
+        // Pair-wise generations
+        FileUtility fu = new FileUtility();
+        fu.setOutput(outFileName);
+        StringBuilder builder = new StringBuilder();
+        builder.append("GenePair");
+        List<String> features = new ArrayList<>(feature2pairs.keySet());
+        features.stream().forEach(feature -> builder.append(",").append(feature));
+        fu.printLine(builder.toString());
+        builder.setLength(0);
+        // All genes have been sorted
+        boolean isNeeded = false;
+        int count = 0;
+        for (int i = 0; i < allGenes.size() - 1; i++) {
+            String gene1 = allGenes.get(i);
+            for (int j = i + 1; j < allGenes.size(); j++) {
+                String gene2 = allGenes.get(j);
+                String pair = gene1 + "\t" + gene2;
+                builder.append(pair);
+                isNeeded = false;
+                for (String feature : features) {
+                    Set<String> pairs = feature2pairs.get(feature);
+                    builder.append(",");
+                    if (pairs.contains(pair)) {
+                        isNeeded = true;
+                        builder.append("1");
+                    }
+                    else
+                        builder.append("0");
+                }
+                // We will collect genes having at least one feature
+                if (isNeeded) {// This check should be reliable
+                    fu.printLine(builder.toString());
+                    count ++;
+                }
+                builder.setLength(0);
+            }
+        }
+        fu.close();
+        logger.info("Done. Output in file " + outFileName);
+        logger.info("Total pairs having at least one feature: " + count);
     }
     
     public boolean isNeedNegative() {
@@ -84,6 +198,14 @@ public class FeatureFileGenerator {
 
     public void setNeedNegative(boolean needNegative) {
         this.needNegative = needNegative;
+    }
+
+    public boolean isPrefixHarmonizomeInFeature() {
+        return prefixHarmonizomeInFeature;
+    }
+
+    public void setPrefixHarmonizomeInFeature(boolean prefixHarmonizomeInFeature) {
+        this.prefixHarmonizomeInFeature = prefixHarmonizomeInFeature;
     }
 
     /**
@@ -251,6 +373,8 @@ public class FeatureFileGenerator {
         Comparator<File> fileSorter = getFileSorter();
         loadHarmonizomeFeatures(feature2pairs, fileSorter);
         Double coexpPercentValue = getCoExpressionPercentile();
+        // GTEx
+        loadGTExCoExpressions(feature2pairs, fileSorter, coexpPercentValue);
         // TCGA
         loadTCGACoExpressions(feature2pairs, fileSorter, coexpPercentValue);
         logger.info("Feature loading is done. Total features: " + feature2pairs.size());
@@ -351,7 +475,7 @@ public class FeatureFileGenerator {
     @FeatureLoader(methods = {"org.reactome.idg.harmonizome.HarmonizomePairwiseLoader.loadPairwisesFromDownload"},
                    source = FeatureSource.Harmonizome)
     private void loadHarmonizomeFeatures(Map<String, Set<String>> feature2pairs,
-                                        Comparator<File> fileSorter) throws Exception {
+                                         Comparator<File> fileSorter) throws Exception {
         logger.info("Loading harmonizome features...");
         fileSorter = fileSorter == null ? getFileSorter() : fileSorter;
         HarmonizomePairwiseLoader harmonizomeHandler = new HarmonizomePairwiseLoader();
@@ -369,7 +493,9 @@ public class FeatureFileGenerator {
             feature = feature.split("\\.")[0]; // We only need the first part as our feature name
             Set<String> pairs = harmonizomeHandler.loadPairwisesFromDownload(file, percentile);
             // Make sure the feature name starting with Harmonizome to downstream analysis
-            feature2pairs.put("Harmonizome-" + feature, pairs);
+            if (prefixHarmonizomeInFeature)
+                feature = "Harmonizome-" + feature;
+            feature2pairs.put(feature, pairs);
             logger.info("Done.");
         }
         logger.info("Harmonizome features loading is done.");
