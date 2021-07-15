@@ -117,8 +117,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         Set<String> humanPPIs = new HashSet<>();
         // We want to map to human genes directly
         Map<String, String> uniprotToGene = getUniProtToGene();
-        for (String yeastPPI : modPPIs) {
-            String[] sgdIds = yeastPPI.split("\t");
+        for (String modPPI : modPPIs) {
+            String[] sgdIds = modPPI.split("\t");
             Set<String> humanProt1 = modIdToHumanUniProtMap.get(sgdIds[0]);
             if (humanProt1 == null || humanProt1.size() == 0)
                 continue;

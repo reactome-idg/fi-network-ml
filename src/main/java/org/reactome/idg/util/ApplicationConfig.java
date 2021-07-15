@@ -102,6 +102,7 @@ public class ApplicationConfig {
         try (Stream<String> lines = new BufferedReader(new InputStreamReader(is)).lines()) {
             return lines.skip(1)
                         .map(line -> line.split("\t"))
+                        .filter(tokens -> !tokens[1].equals("null")) // Some of UniProt ids in Reactome don't have gene names yet (e.g. https://www.uniprot.org/uniprot/Q56UQ5).
                         .collect(Collectors.toMap(tokens -> tokens[0], 
                                                   tokens -> tokens[1],
                                                   (gene1, gene2) -> gene1)); // In case two genes are mapped to the same protein, choose the first one.
