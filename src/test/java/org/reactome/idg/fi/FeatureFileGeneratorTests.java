@@ -54,13 +54,14 @@ public class FeatureFileGeneratorTests {
      */
     @Test
     public void checkFeatures() throws Exception {
-        double scoreCutoff = 0.85d;
+        double scoreCutoff = 0.50d;
         String dirName = "results/feature_files/prediction/";
         String featureFileName = dirName + "prediction_061820.csv";
         String scoreFile = dirName + "prd_probabilities_prediction_061820_w_ppi_names.csv";
         String gene = "PRKY";
         gene = "SBK2";
         gene = "CSNK2A3";
+        gene = "ABL1";
         
 //        gene = "CACNG6";
 //        scoreCutoff = 0.65d;
@@ -116,6 +117,9 @@ public class FeatureFileGeneratorTests {
         double threshold = 0.67d; // For at least two features
 //        threshold = 0.90d; // To control precision at 0.50
         threshold = 0.80; // The point the recall curve and the precision curve cross.
+        threshold = 0.85;
+        threshold = 0.875;
+        threshold = 0.86124659652243;
         FileUtility fu = new FileUtility();
         fu.setInput(fileName);
         String line = fu.readLine();

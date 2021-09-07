@@ -19,6 +19,9 @@ import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
 import org.reactome.fi.util.InteractionUtilities;
 import org.reactome.idg.util.ApplicationConfig;
+import org.reactome.idg.util.DatabaseConfig;
+
+import com.mysql.cj.xdevapi.DatabaseObject;
 
 /**
  * This class is used to process a download similarity data and generate a set of selected
@@ -50,14 +53,7 @@ public class DataProcessor {
     @SuppressWarnings("unchecked")
     public void dumpAllGenes(String fileName) throws Exception {
         // Need to load all human genes from a Reactome database
-        InputStream is = getClass().getClassLoader().getResourceAsStream("db.properties");
-        Properties prop = new Properties();
-        prop.load(is);
-        is.close();
-        MySQLAdaptor dba = new MySQLAdaptor("localhost",
-                                            prop.getProperty("reactome.db.name"), 
-                                            prop.getProperty("mysql.user"), 
-                                            prop.getProperty("mysql.password"));
+        MySQLAdaptor dba = DatabaseConfig.getMySQLDBA();
         GKInstance human = dba.fetchInstance(48887L);
         Collection<GKInstance> refGenes = dba.fetchInstanceByAttribute(ReactomeJavaConstants.ReferenceGeneProduct,
                                                                        ReactomeJavaConstants.species,
