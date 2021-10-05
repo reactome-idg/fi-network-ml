@@ -1,6 +1,7 @@
 package org.reactome.idg.bn;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -16,14 +17,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.hc.client5.http.fluent.Request;
 import org.apache.log4j.Logger;
 import org.gk.model.GKInstance;
 import org.gk.model.ReactomeJavaConstants;
+import org.gk.persistence.DiagramGKBReader;
 import org.gk.persistence.MySQLAdaptor;
+import org.gk.render.Renderable;
+import org.gk.render.RenderablePathway;
+import org.gk.util.GKApplicationUtilities;
 import org.junit.Test;
-import org.reactome.booleannetwork.HillFunction;
 import org.reactome.booleannetwork.FuzzyLogicSimulator.ANDGateMode;
+import org.reactome.booleannetwork.HillFunction;
 import org.reactome.idg.util.ApplicationConfig;
 import org.reactome.idg.util.DatabaseConfig;
 import org.reactome.pathway.booleannetwork.BNPerturbationAnalyzer;
@@ -40,10 +44,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SuppressWarnings("unchecked")
 public class PathwayImpacAnalyzer {
-	private final Logger logger = Logger.getLogger(PathwayImpacAnalyzer.class);
+	private static final Logger logger = Logger.getLogger(PathwayImpacAnalyzer.class);
     // The local WS API started from mvn tomcat7:run
     private final String TCRD_WS_URL = "http://localhost:8060/tcrdws";
-    private final String FI_CORE_WS_URL = "http://localhost:8080/corews";
     // Cache this to avoid multiple typing
     private ObjectMapper mapper;
     // Cache load predicted FIs for quick performance
@@ -51,17 +54,40 @@ public class PathwayImpacAnalyzer {
     // Used to map to g values from score
     private Map<Double, Double> score2precision;
     private double[] scores; // Sorted array from the above map for matching prediction scores
+    // For output
+    private String outFileName = null;
 
     public PathwayImpacAnalyzer() {
     	mapper = new ObjectMapper();
     }
     
+    public static void main(String[] args) {
+    	if (args.length < 1) {
+    		System.out.println("java -Xmx12G org.reactome.idg.bn.PathwayImpactAnalyzer {out_file_name}");
+    		System.exit(0);
+    	}
+    	PathwayImpacAnalyzer analyzer = new PathwayImpacAnalyzer();
+    	analyzer.setOutputFile(args[0]);
+    	try {
+    		analyzer.performFuzzyLogicAnalysis();
+    	}
+    	catch(Exception e) {
+    		logger.error(e.getMessage(), e);
+    	}
+    }
+    
+    public void setOutputFile(String file) {
+    	this.outFileName = file;
+    }
+    
     /**
      * Conduct a systematic impact analysis using the fuzzy logic model.
      * @throws Exception
+     * TODO: Add a filter to avoid run simulations for pathways having genes annotated.
      */
     @Test
     public void performFuzzyLogicAnalysis() throws Exception {
+//    	outFileName = "test.txt";
     	MySQLAdaptor mysqlDBA = DatabaseConfig.getMySQLDBA();
     	// Get the list of pathways having ELV
     	List<GKInstance> pathways = loadPathwaysForAnalysis(mysqlDBA);
@@ -77,67 +103,107 @@ public class PathwayImpacAnalyzer {
     	GeneFITargetMapper activationMapper = new ActivationGeneFITargetMapper();
     	GeneFITargetMapper inhibitionMapper = new InhibitionGeneFITargetMapper();
     	PathwayToBooleanNetworkConverter converter = new PathwayToBooleanNetworkConverter();
-    	String gene = "CALHM6"; // Test case
-    	for (GKInstance pathway : pathways) {
-    		if (!pathway.getDisplayName().equals("Costimulation by the CD28 family"))
+//    	String gene = "CALHM6"; // Test case
+    	
+    	PrintStream ps = null;
+    	if (outFileName != null)
+    		ps = new PrintStream(outFileName);
+    	else
+    		ps = System.out;
+    	// Generate header
+    	ps.println("Gene\tDBID\tPathwayName\t"
+    			+ "Sum_Activation\tAverage_Activation\t"
+    			+ "Sum_Inhibition\tAverage_Inhibition");
+    	
+    	Set<String> genes = ApplicationConfig.getConfig().getAllGenes();
+    	int counter = 0;
+    	long time0 = System.currentTimeMillis();
+    	for (String gene : genes) {
+    		if (!gene.equals("FAM19A2"))
     			continue;
-    		System.out.println("Pathway: " + pathway);
-    		PathwayImpactAnalysisResult result = bnAnalyzer.performDrugImpactAnalysis(pathway, 
-    																			      converter, 
-    																			      gene, 
-    																			      activationMapper);
-    		if (result == null)
-    			continue;
-    		System.out.println("Activation Average: " + result.getAverage());
-    		result = bnAnalyzer.performDrugImpactAnalysis(pathway,
-    				converter,
-    				gene, 
-    				inhibitionMapper);
-    		if (result == null)
-    			continue;
-    		System.out.println("Inhibition Average: " + result.getAverage());
-    		break;
+    		logger.warn("Working on " + gene + "...");
+    		long time1 = System.currentTimeMillis();
+    		for (GKInstance pathway : pathways) {
+    			if (!pathway.getDBID().equals(199992L))
+    				continue;
+    			//    		if (!pathway.getDisplayName().equals("Costimulation by the CD28 family"))
+    			//    			continue;
+//    			logger.warn("Pathway: " + pathway);
+    			PathwayImpactAnalysisResult resultActivation = bnAnalyzer.performDrugImpactAnalysis(pathway, 
+    					converter, 
+    					gene, 
+    					activationMapper);
+//    			if (resultActivation == null)
+//    				logger.warn("Nothing for activation simulation.");
+    			PathwayImpactAnalysisResult resultInhibition = bnAnalyzer.performDrugImpactAnalysis(pathway,
+    					converter,
+    					gene, 
+    					inhibitionMapper);
+//    			if (resultInhibition == null)
+//    				logger.warn("Nothing for inhibition simulation");
+    			if (resultActivation == null && resultInhibition == null)
+    				continue;
+    			ps.println(gene + "\t" + pathway.getDBID() + "\t" + pathway.getDisplayName() + "\t" + 
+    					(resultActivation == null ? "" : resultActivation.getSum()) + "\t" + 
+    					(resultActivation == null ? "" : resultActivation.getAverage()) + "\t" + 
+    					(resultInhibition == null ? "" : resultInhibition.getSum()) + "\t" + 
+    					(resultInhibition == null ? "" : resultInhibition.getAverage()));
+    		}
+    		long time2 = System.currentTimeMillis();
+    		logger.warn("Done gene: " + gene + " (" + (time2 - time1) / 1000.0d + " seconds)");
+    		counter ++;
+//    		if (counter == 100)
+//    			break;
     	}
-    }
-    
-    private List<GKInstance> loadPathwaysForAnalysis(MySQLAdaptor mysqlDBA) throws Exception {
-    	String url = FI_CORE_WS_URL + "/FIService/network/pathways/logicmodels/hsa";
-    	String text = Request.get(url).execute().returnContent().asString();
-    	List<String> pathwayStIds = Stream.of(text.split("\n")).collect(Collectors.toList());
-    	logger.info("Total pathways to be checked: " + pathwayStIds.size());
-    	List<GKInstance> pathways = fetchPathways(pathwayStIds, mysqlDBA);
-    	return pathways;
+    	logger.warn("Total time for simulation: " + (System.currentTimeMillis() - time0) / 1000.0d + " seconds.");
+    	ps.close();
     }
     
     /**
-     * Fetch pathways in GKInstance for a list of pathway stable ids.
-     * @param stIds
-     * @param dba
+     * The implementation of this method is ported from org.reactome.r3.fi.ReactomeObjectHandler.loadPathwayDBIDs()
+     * in the FI core WS project. The goal is to get a list of pathways that have ELVs for impact analysis.
+     * @param mysqlDBA
      * @return
      * @throws Exception
      */
-    private List<GKInstance> fetchPathways(List<String> stIds, MySQLAdaptor dba) throws Exception {
-    	List<GKInstance> pathways = new ArrayList<GKInstance>();
-    	for (String stId : stIds) {
-    		// Get the stable id first
-    		Collection<GKInstance> c = dba.fetchInstanceByAttribute(ReactomeJavaConstants.StableIdentifier,
-    				ReactomeJavaConstants.identifier,
-    				"=", 
-    				stId);
-    		if (c == null || c.size() == 0)
-    			throw new IllegalStateException(stId + " cannot be found in the MySQL database.");
-    		// There should be only one 
-    		GKInstance stIdInst = c.stream().findAny().get();
-    		// Get the pathway for this StableID
-    		c = dba.fetchInstanceByAttribute(ReactomeJavaConstants.Pathway,
-    				ReactomeJavaConstants.stableIdentifier,
-    				"=",
-    				stIdInst);
-    		if (c == null || c.size() == 0)
-    			throw new IllegalStateException("Cannot find a pathway for " + stIdInst);
-    		pathways.add(c.stream().findAny().get());
-    	}
-    	return pathways;
+    protected List<GKInstance> loadPathwaysForAnalysis(MySQLAdaptor mysqlDBA) throws Exception {
+        Collection<GKInstance> diagrams = mysqlDBA.fetchInstancesByClass(ReactomeJavaConstants.PathwayDiagram);
+        DiagramGKBReader reader = new DiagramGKBReader();
+        List<GKInstance> rtn = new ArrayList<GKInstance>();
+        for (GKInstance diagram : diagrams) {
+        	// Make sure it is for human pathway
+        	List<GKInstance> pathways = diagram.getAttributeValuesList(ReactomeJavaConstants.representedPathway);
+        	// For normal pathway only
+        	boolean isHuman = false;
+        	GKInstance pathwayInst = null;
+        	for (int i = 0; i < pathways.size(); i++) {
+        		pathwayInst = pathways.get(i);
+        		GKInstance species = (GKInstance) pathwayInst.getAttributeValue(ReactomeJavaConstants.species);
+        		if (species.getDBID().equals(GKApplicationUtilities.HOMO_SAPIENS_DB_ID)) {
+        			isHuman = true;
+        			break;
+        		}
+        	}
+        	if (!isHuman)
+        		continue;
+            boolean hasELV = false;
+            RenderablePathway pathway = reader.openDiagram(diagram);
+            List<Renderable> components = pathway.getComponents();
+            if (components != null) {
+                for (Renderable r : components) {
+                    if (r.getReactomeId() == null)
+                        continue;
+                    GKInstance inst = mysqlDBA.fetchInstance(r.getReactomeId());
+                    if (inst.getSchemClass().isa(ReactomeJavaConstants.PhysicalEntity)) {
+                        hasELV = true;
+                        break;
+                    }
+                }
+            }
+            if (hasELV) 
+                rtn.add(pathwayInst);
+        }
+        return rtn;
     }
 
     /**
@@ -151,6 +217,10 @@ public class PathwayImpacAnalyzer {
         // For get-based URL, we may use this simple API
         List<String> list = mapper.readValue(urlAddress, new TypeReference<List<String>>(){});
         return list;
+    }
+    
+    public DrugToTargetsMapper getInteractionMapper() {
+    	return new ActivationGeneFITargetMapper();
     }
     
     private abstract class GeneFITargetMapper implements DrugToTargetsMapper {

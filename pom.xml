@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.reactome.idg</groupId>
 	<artifactId>fi-network-ml</artifactId>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>0.1.1-SNAPSHOT</version>
 
 	<properties>
 		<maven.compiler.source>1.8</maven.compiler.source>
@@ -23,15 +23,17 @@
 				<finalName>fi-network-ml</finalName>
 				<plugins>
 					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-assembly-plugin</artifactId>
-						<version>3.1.1</version>
+						<version>3.3.0</version>
 						<configuration>
 							<archive>
 								<manifest>
-<!-- 									<mainClass>org.reactome.idg.harmonizome.DataDownloader</mainClass> -->
-<!-- 									<mainClass>org.reactome.idg.coexpression.CoExpressionAnalyzer</mainClass> -->
-<!-- 									<mainClass>org.reactome.idg.fi.FeaturesCheckers</mainClass> -->
-									<mainClass>org.reactome.idg.fi.FeatureFileGenerator</mainClass>
+									<!-- <mainClass>org.reactome.idg.harmonizome.DataDownloader</mainClass> -->
+									<!-- <mainClass>org.reactome.idg.coexpression.CoExpressionAnalyzer</mainClass> -->
+									<!-- <mainClass>org.reactome.idg.fi.FeaturesCheckers</mainClass> -->
+<!-- 									<mainClass>org.reactome.idg.fi.FeatureFileGenerator</mainClass> -->
+									<mainClass>org.reactome.idg.bn.PathwayImpacAnalyzer</mainClass>
 								</manifest>
 							</archive>
 							<descriptorRefs>
@@ -64,11 +66,12 @@
 			<artifactId>log4j-core</artifactId>
 			<version>2.11.2</version>
 		</dependency>
-		<dependency>
-			<groupId>mysql</groupId>
-			<artifactId>mysql-connector-java</artifactId>
-			<version>${mysql.driver.version}</version>
-		</dependency>
+		<!-- This new version cannot work with mysql@rws00061. Needs to add ssl to mysql@rws00061. -->
+<!-- 		<dependency> -->
+<!-- 			<groupId>mysql</groupId> -->
+<!-- 			<artifactId>mysql-connector-java</artifactId> -->
+<!-- 			<version>${mysql.driver.version}</version> -->
+<!-- 		</dependency> -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-dbcp2</artifactId>
@@ -133,53 +136,90 @@
 		</dependency>
 		<dependency>
 			<groupId>org.apache.httpcomponents</groupId>
-			<artifactId>httpclient</artifactId>
-			<version>4.5.2</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.httpcomponents</groupId>
 			<artifactId>httpmime</artifactId>
 			<version>4.5</version>
 		</dependency>
+
+		<!-- Some nice APIs in the new versions -->
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+			<version>5.1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5-fluent</artifactId>
+			<version>5.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.reactome.fi</groupId>
 			<artifactId>build</artifactId>
 			<version>1.0.1</version>
 		</dependency>
+
+		<!-- Jackson API for JSON -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.8.11.4</version>
+		</dependency>
+
 		<!-- Get the jar file from the lib folder and check load into your local 
 			maven repository. -->
 		<dependency>
 			<groupId>org.reactome.fi</groupId>
 			<artifactId>foundation</artifactId>
-			<version>1.0.1</version>
+			<version>1.0.2</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.reactome.fi</groupId>
 					<artifactId>build</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.hibernate</groupId>
+					<artifactId>hibernate</artifactId>
+				</exclusion>
 			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.reactome.fi</groupId>
+			<artifactId>modeling</artifactId>
+			<version>1.0.2</version>
+		</dependency>
+		<!-- To support some JavaScript-based plot, which provide a much better 
+			plot that JFreeChart -->
+		<dependency>
+			<groupId>tech.tablesaw</groupId>
+			<artifactId>tablesaw-core</artifactId>
+			<version>0.38.4</version>
+		</dependency>
+		<dependency>
+			<groupId>tech.tablesaw</groupId>
+			<artifactId>tablesaw-jsplot</artifactId>
+			<version>0.38.4</version>
 		</dependency>
 	</dependencies>
 
 	<build>
 		<plugins>
-		<plugin>
-			<groupId>org.apache.maven.plugins</groupId>
-			<artifactId>maven-jar-plugin</artifactId>
-			<version>2.3.1</version>
-			<configuration>
-			    <!-- Don't export the configuration file is this jar
-			    is used in other place. Otherwise, the application.properties
-			    will be expanded and overwrite other projects' setting if built 
-			    for a runnable jar. -->
-				<excludes>
-					<exclude>**/application.properties</exclude>
-				</excludes>
-			</configuration>
-		</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.3.1</version>
+				<configuration>
+					<!-- Don't export the configuration file is this jar is used in other 
+						place. Otherwise, the application.properties will be expanded and overwrite 
+						other projects' setting if built for a runnable jar. -->
+					<excludes>
+						<exclude>**/application.properties</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
-	
+
 	<repositories>
 		<!-- EBI repo -->
 		<repository>
