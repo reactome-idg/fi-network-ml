@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,11 +20,13 @@ import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
 import org.gk.model.GKInstance;
+import org.gk.model.InstanceUtilities;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.DiagramGKBReader;
 import org.gk.persistence.MySQLAdaptor;
 import org.gk.render.Renderable;
 import org.gk.render.RenderablePathway;
+import org.gk.util.FileUtilities;
 import org.gk.util.GKApplicationUtilities;
 import org.junit.Test;
 import org.reactome.booleannetwork.FuzzyLogicSimulator.ANDGateMode;
@@ -119,12 +122,12 @@ public class PathwayImpacAnalyzer {
     	int counter = 0;
     	long time0 = System.currentTimeMillis();
     	for (String gene : genes) {
-    		if (!gene.equals("FAM19A2"))
+    		if (!gene.equals("LRFN1"))
     			continue;
     		logger.warn("Working on " + gene + "...");
     		long time1 = System.currentTimeMillis();
     		for (GKInstance pathway : pathways) {
-    			if (!pathway.getDBID().equals(199992L))
+    			if (!pathway.getDBID().equals(6794361L))
     				continue;
     			//    		if (!pathway.getDisplayName().equals("Costimulation by the CD28 family"))
     			//    			continue;
@@ -157,6 +160,51 @@ public class PathwayImpacAnalyzer {
     	}
     	logger.warn("Total time for simulation: " + (System.currentTimeMillis() - time0) / 1000.0d + " seconds.");
     	ps.close();
+    }
+    
+    /**
+     * This method is used to map pathways subject to simulation to the top level pathways for visualization.
+     * @throws Exception
+     */
+    @Test
+    public void mapPathwaysToTopLevels() throws Exception {
+    	MySQLAdaptor dba = DatabaseConfig.getMySQLDBA();
+    	List<GKInstance> pathways = loadPathwaysForAnalysis(dba);
+    	// Pull out the top level pathways
+    	Long frontPageId = 9731223L;
+    	GKInstance frontPage = dba.fetchInstance(frontPageId);
+    	List<GKInstance> topPathways = frontPage.getAttributeValuesList(ReactomeJavaConstants.frontPageItem);
+    	Map<GKInstance, Set<GKInstance>> pathway2top = new HashMap<>();
+    	for (GKInstance topPathway : topPathways) {
+    		Set<GKInstance> comps = InstanceUtilities.getContainedEvents(topPathway);
+    		comps.add(topPathway); // Add itself in case the top is small enough
+    		for (GKInstance comp : comps) {
+    			pathway2top.compute(comp, (key, set) -> {
+    				if (set == null)
+    					set = new HashSet<>();
+    				set.add(topPathway);
+    				return set;
+    			});
+    		}
+    	}
+    	
+    	String output = ImpactResultAnalyzer.RESULT_DIR + "pathway2topic_100721.txt";
+    	FileUtilities fu = new FileUtilities();
+    	fu.setOutput(output);
+    	fu.printLine("Pathway\tTopic");
+    	for (GKInstance pathway : pathways) {
+    		Set<GKInstance> tops = pathway2top.get(pathway);
+    		if (tops == null)
+    			throw new IllegalStateException("Cannot find a top pathway for: " + pathway);
+    		String topNames = null;
+    		if (tops.size() > 1) {
+    			topNames = tops.stream().map(t -> t.getDisplayName().trim()).sorted().collect(Collectors.joining(","));
+    		}
+    		else
+    			topNames = tops.stream().findAny().get().getDisplayName().trim(); // Have to do trim
+    		fu.printLine(pathway.getDisplayName().trim()  + "\t" + topNames);
+    	}
+    	fu.close();
     }
     
     /**

@@ -1,10 +1,16 @@
 package org.reactome.idg.bn;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
 import org.gk.model.GKInstance;
@@ -21,10 +27,186 @@ import org.reactome.idg.util.DatabaseConfig;
 import org.reactome.pathway.booleannetwork.DrugToTargetsMapper;
 
 public class ImpactResultAnalyzer {
-	private static final String RESULT_DIR = "results/impact_analysis/";
+	public static final String RESULT_DIR = "results/impact_analysis/";
 	private static final Logger logger = Logger.getLogger(ImpactResultAnalyzer.class);
 	
 	public ImpactResultAnalyzer() {
+	}
+	
+	/**
+	 * Generate the data frames for some R-based visualization.
+	 * @throws IOException
+	 */
+	@Test
+	public void createDataFrame() throws IOException {
+		// Used for filtering
+		Map<String, String> gene2level = loadProtein2DevLevel();
+		Map<String, String> gene2family = loadProtein2Family();
+		// Selected proteins
+		Set<String> selectedFamilies = Stream.of("IC", "Kinase", "GPCR").collect(Collectors.toSet());
+		
+		String src = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		
+		// Output the data frame for FDR
+//		String out = RESULT_DIR + "impact_analysis_092121_df_fdr_no_filter_three_families_all_100821.txt";
+//		int index = 10;
+//		boolean needNegLog = true;
+//		double threshold = 1.0d;
+//		boolean isFDR = true;
+		// Output for Average_Activation
+//		String out = RESULT_DIR + "impact_analysis_092121_df_activation_three_families_all_100821.txt";
+//		int index = 4;
+//		boolean needNegLog = false;
+//		double threshold = 0.0d;
+//		boolean isFDR = false;
+		// Output for average_inhibition
+		String out = RESULT_DIR + "impact_analysis_092121_df_inhibition_three_families_all_100821.txt";
+		int index = 6;
+		boolean needNegLog = false;
+		double threshold = 0.0d;
+		boolean isFDR = false;
+		
+				
+		Set<String> allPathways = new HashSet<>();
+		Map<String, Map<String, Double>> gene2pathway2score = new HashMap<>();
+		FileUtilities fu = new FileUtilities();
+		fu.setInput(src);
+		String line = fu.readLine();
+		while ((line = fu.readLine()) != null) {
+			String[] tokens = line.split("\t");
+			String gene = tokens[0];
+//			if (!gene2level.get(gene).equals("Tdark"))
+//				continue;
+			if (!selectedFamilies.contains(gene2family.get(gene)))
+				continue;
+			Double score = new Double(tokens[index]);
+			if (isFDR && score > threshold)
+				continue;
+			if (!isFDR && score < threshold)
+				continue; // Other cases
+			Map<String, Double> pathway2score = gene2pathway2score.get(gene);
+			if (pathway2score == null) {
+				pathway2score = new HashMap<>();
+				gene2pathway2score.put(gene, pathway2score);
+			}
+			if (needNegLog)
+				score = -Math.log10(score);
+			pathway2score.put(tokens[2], score);
+			allPathways.add(tokens[2]);
+		}
+		fu.close();
+		
+		exportDataFrame(gene2pathway2score, allPathways, out, fu);
+	}
+
+	private void exportDataFrame(Map<String, Map<String, Double>> gene2pathway2score,
+	                             Set<String> allPathways,
+	                             String out,
+	                             FileUtilities fu) throws IOException {
+		System.out.println("Total selected genes: " + gene2pathway2score.size());
+		System.out.println("Total selected patwhays: " + allPathways.size());
+		List<String> pathwayList = allPathways.stream().sorted().collect(Collectors.toList());
+		fu.setOutput(out);
+		StringBuilder builder = new StringBuilder();
+		builder.append("Gene");
+		pathwayList.forEach(p -> builder.append("\t").append(p));
+		fu.printLine(builder.toString());
+		List<String> geneList = gene2pathway2score.keySet().stream().sorted().collect(Collectors.toList());
+		for (String gene : geneList) {
+			Map<String, Double> pathway2score = gene2pathway2score.get(gene);
+			builder.setLength(0);
+			builder.append(gene);
+			for (String pathway : pathwayList) {
+				Double score = pathway2score.get(pathway);
+				if (score == null)
+					score = 0.0d;
+				builder.append("\t").append(score);
+			}
+			fu.printLine(builder.toString());
+		}
+		fu.close();
+	}
+	
+	private Map<String, String> loadProtein2Family() throws IOException {
+		InputStream is = DatabaseConfig.class.getClassLoader().getResourceAsStream("UniProtGeneDevLevelsTypes_100721.txt");
+		InputStreamReader isr = new InputStreamReader(is);
+		BufferedReader br = new BufferedReader(isr);
+		String line = br.readLine();
+		Map<String, String> gene2family = new HashMap<>();
+		while ((line = br.readLine()) != null) {
+			String[] tokens = line.split("\t");
+			gene2family.put(tokens[1], tokens[3]);
+		}
+		br.close();
+		return gene2family;
+	}
+	
+	private Map<String, String> loadProtein2DevLevel() throws IOException {
+		InputStream is = DatabaseConfig.class.getClassLoader().getResourceAsStream("UniProtGeneDevLevelsTypes_100721.txt");
+		InputStreamReader isr = new InputStreamReader(is);
+		BufferedReader br = new BufferedReader(isr);
+		String line = br.readLine();
+		Map<String, String> gene2level = new HashMap<>();
+		while ((line = br.readLine()) != null) {
+			String[] tokens = line.split("\t");
+			gene2level.put(tokens[1], tokens[2]);
+		}
+		br.close();
+		return gene2level;
+	}
+	
+	@Test
+	public void attachDevLevels() throws Exception {
+		Map<String, String> gene2level = loadProtein2DevLevel();
+		System.out.println("Total gen2level: " + gene2level.size());
+//		String srcFile = RESULT_DIR + "neuronal_system_impact_analysis_092121_with_enrichment_092921_100521.txt";
+//		String destFile = RESULT_DIR + "neuronal_system_impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		
+		String srcFile = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921.txt";
+		String destFile = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		
+		FileUtilities fu = new FileUtilities();
+		fu.setInput(srcFile);
+		fu.setOutput(destFile);
+		String line = fu.readLine();
+		fu.printLine(line + "\tDevLevel");
+		while ((line = fu.readLine()) != null) {
+			String[] tokens = line.split("\t");
+			String level = gene2level.get(tokens[0]);
+			fu.printLine(line + "\t" + level);
+		}
+		fu.close();
+	}
+	
+	@Test
+	public void filterToTopPathway() throws Exception {
+		MySQLAdaptor dba = DatabaseConfig.getMySQLDBA();
+		// Top pathway
+		Long dbId = 112316L; // Neuronal System
+		dbId = 6794362L; // Protein-protein interactions at synapses
+		GKInstance pathway = dba.fetchInstance(dbId);
+		Set<GKInstance> containedPathways = InstanceUtilities.getContainedEvents(pathway);
+		containedPathways.add(pathway);
+		logger.info("Total pathways: " + containedPathways.size());
+		Set<Long> pathwayIds = containedPathways.stream().map(p -> p.getDBID()).collect(Collectors.toSet());
+		
+//		String srcFile = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921.txt";
+//		String destFile = RESULT_DIR + "neuronal_system_impact_analysis_092121_with_enrichment_092921_100521.txt";
+		
+		String srcFile = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		String destFile = RESULT_DIR + "protein_interactions_at_synapses_impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		
+		FileUtilities fu = new FileUtilities();
+		fu.setInput(srcFile);
+		fu.setOutput(destFile);
+		String line = fu.readLine();
+		fu.printLine(line);
+		while ((line = fu.readLine()) != null) {
+			String[] tokens = line.split("\t");
+			if (pathwayIds.contains(new Long(tokens[1])))
+				fu.printLine(line);
+		}
+		fu.close();
 	}
 	
 	@Test
@@ -37,6 +219,7 @@ public class ImpactResultAnalyzer {
 		// Perform enrichment analysis
 		String srcFile = ImpactResultAnalyzer.RESULT_DIR + "impact_analysis_092121.txt";
 		String destFile = ImpactResultAnalyzer.RESULT_DIR + "impact_analysis_092121_with_enrichment_092921.txt";
+		destFile = ImpactResultAnalyzer.RESULT_DIR + "test_delete_me.txt";
 		FileUtilities fu = new FileUtilities();
 		fu.setInput(srcFile);
 		fu.setOutput(destFile);
@@ -47,6 +230,11 @@ public class ImpactResultAnalyzer {
 		Map<String, List<GeneSetAnnotation>> gene2annotation = new HashMap<>();
 		while ((line = fu.readLine()) != null) {
 			String[] tokens = line.split("\t");
+			
+			// Test code
+			if (!tokens[0].equals("LRFN1"))
+				continue;
+			
 			List<GeneSetAnnotation> annotations = gene2annotation.get(tokens[0]);
 			if (annotations == null) {
 				Set<String> interactors = interactionMapper.getDrugTargets(tokens[0]);
@@ -67,7 +255,7 @@ public class ImpactResultAnalyzer {
 			Set<String> pathwayGenes = pathwayId2Genes.get(tokens[1]);
 			boolean isAnnotated = pathwayGenes.contains(tokens[0]);
 			line += "\t" + isAnnotated + "\t" + annotation.getHitNumber() + "\t" + 
-			        annotation.getPValue() + "\t" + annotation.getFdr();
+			        annotation.getPValue() + "\t" + annotation.getFdr() + "\t" + annotation.getHitIds();
 			fu.printLine(line);
 		}
 		fu.close();
