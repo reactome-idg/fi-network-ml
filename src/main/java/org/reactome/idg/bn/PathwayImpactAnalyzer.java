@@ -46,8 +46,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * in this class, this web service app should be up and running. The RESTful API is called to get all information needed.
  */
 @SuppressWarnings("unchecked")
-public class PathwayImpacAnalyzer {
-	private static final Logger logger = Logger.getLogger(PathwayImpacAnalyzer.class);
+public class PathwayImpactAnalyzer {
+	private static final Logger logger = Logger.getLogger(PathwayImpactAnalyzer.class);
     // The local WS API started from mvn tomcat7:run
     private final String TCRD_WS_URL = "http://localhost:8060/tcrdws";
     // Cache this to avoid multiple typing
@@ -60,7 +60,7 @@ public class PathwayImpacAnalyzer {
     // For output
     private String outFileName = null;
 
-    public PathwayImpacAnalyzer() {
+    public PathwayImpactAnalyzer() {
     	mapper = new ObjectMapper();
     }
     
@@ -69,7 +69,7 @@ public class PathwayImpacAnalyzer {
     		System.out.println("java -Xmx12G org.reactome.idg.bn.PathwayImpactAnalyzer {out_file_name}");
     		System.exit(0);
     	}
-    	PathwayImpacAnalyzer analyzer = new PathwayImpacAnalyzer();
+    	PathwayImpactAnalyzer analyzer = new PathwayImpactAnalyzer();
     	analyzer.setOutputFile(args[0]);
     	try {
     		analyzer.performFuzzyLogicAnalysis();
@@ -214,7 +214,7 @@ public class PathwayImpacAnalyzer {
      * @return
      * @throws Exception
      */
-    protected List<GKInstance> loadPathwaysForAnalysis(MySQLAdaptor mysqlDBA) throws Exception {
+    public List<GKInstance> loadPathwaysForAnalysis(MySQLAdaptor mysqlDBA) throws Exception {
         Collection<GKInstance> diagrams = mysqlDBA.fetchInstancesByClass(ReactomeJavaConstants.PathwayDiagram);
         DiagramGKBReader reader = new DiagramGKBReader();
         List<GKInstance> rtn = new ArrayList<GKInstance>();
