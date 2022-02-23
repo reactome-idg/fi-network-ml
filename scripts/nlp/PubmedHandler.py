@@ -1,6 +1,6 @@
 # This script is used to handle pubmed related processes, e.g. download, parse, etc. The code is heavily based
 # on this web post: https://www.toptal.com/python/beginners-guide-to-concurrency-and-parallelism-in-python
-
+import concurrent.futures
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -42,14 +42,17 @@ def dowload_link(dir_name: str,
 def download():
     ensure_out_dir(OUT_DIR)
     # Get links for download
-    links = [DOWNLOAD_URL.format(id) for id in range(1, MAX_ID + 1)]
+    links = [DOWNLOAD_URL.format(id) for id in range(1, MAX_ID + 1) if id % 200 == 0]
     # dowload_link(OUT_DIR, links[0])
     with ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
-        try:
-            func = partial(dowload_link, OUT_DIR)
-            executor.map(func, links)
-        except Exception as e:
-            logger.error("Exception thrown: " + e)
+        # Need to use future in order to catch exceptions
+        # See:https://www.digitalocean.com/community/tutorials/how-to-use-threadpoolexecutor-in-python-3
+        futures = [executor.submit(dowload_link, OUT_DIR, link) for link in links]
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                logger.error("Exception thrown:", exc_info=e)
 
 
 if __name__ == '__main__':
