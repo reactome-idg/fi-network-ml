@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
 OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
 MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
-MAX_WORKER = 4
+MAX_WORKER = 12
 
 
 def ensure_out_dir(dir_name: str):
@@ -65,24 +65,31 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
     if not file.exists():
         raise FileNotFoundError("Cannot find directory: {}".format(dir_name))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    print('memory used before loading: {} M.'.format(mem))
+    logger.info('memory used before loading: {} M.'.format(mem))
     time0 = time.time()
     # Try to run in a multi-process way
     with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
         files = [file for file in file.iterdir() if '.xml' in file.name]
         results = executor.map(extract_abstract, files)
+    time01 = time.time()
+    logger.info("Done parsing all files: {} seconds.".format(time01 - time0))
+    logger.info("Starting merging dicts...")
     pmid2abstract = {}
     for result in results:
-        pmid2abstract = {**result, **pmid2abstract}
-    print("Total pmid2abstract: {}".format(len(pmid2abstract)))
+        pmid2abstract.update(result) # Don't use the unpacking way (i.e. **) for merging even though it is faster for
+                                     # two dict merging.
+    logger.info("Total pmid2abstract: {}".format(len(pmid2abstract)))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    print('memory used after loading: {} M.'.format(mem))
+    logger.info('memory used after loading: {} M.'.format(mem))
     time1 = time.time()
-    print("Total time used: {} seconds.".format(time1 - time0))
+    logger.info("Total time used for merging: {} seconds.".format(time1 - time01))
     # Save the object
+    logger.info("Dumping pmid2abstract...")
     file = open(dir_name + "/pmid2abstract.pkl", 'wb')
     pickle.dump(pmid2abstract, file)
     file.close()
+    time2 = time.time()
+    logger.info("Total time used: {} seconds.".format(time2 - time0))
     return pmid2abstract
 
 
