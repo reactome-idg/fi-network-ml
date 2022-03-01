@@ -4,6 +4,7 @@ import concurrent.futures
 import gzip
 import logging
 import os
+import pickle
 import time
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
@@ -78,6 +79,16 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
     print('memory used after loading: {} M.'.format(mem))
     time1 = time.time()
     print("Total time used: {} seconds.".format(time1 - time0))
+    # Save the object
+    file = open(dir_name + "/pmid2abstract.pkl", 'wb')
+    pickle.dump(pmid2abstract, file)
+    file.close()
+    return pmid2abstract
+
+
+def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl") -> dict:
+    file = open(file_name, "rb")
+    pmid2abstract = pickle.load(file)
     return pmid2abstract
 
 
@@ -108,6 +119,7 @@ def extract_abstract(file_name: str,
             continue
         pmid = citation.find('PMID').text
         pmid2abstract[pmid] = abstractText.text
+    logger.info("Done parsing: {}.".format(file_name))
     return pmid2abstract
 
 
