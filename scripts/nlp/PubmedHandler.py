@@ -77,7 +77,8 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
     pmid2abstract = {}
     for result in results:
         pmid2abstract.update(result) # Don't use the unpacking way (i.e. **) for merging even though it is faster for
-                                     # two dict merging.
+                                     # two dict merging. This should be faster since there is no need to unpack the merged
+                                     # dict repeatedly.
     logger.info("Total pmid2abstract: {}".format(len(pmid2abstract)))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
     logger.info('memory used after loading: {} M.'.format(mem))
@@ -125,10 +126,32 @@ def extract_abstract(file_name: str,
         if abstractText is None:
             continue
         pmid = citation.find('PMID').text
-        pmid2abstract[pmid] = abstractText.text
+        # Use the following method to get rid of tags in the abstract text, which are used for html rendering
+        # This should work for text only abstractText.
+        pmid2abstract[pmid] = ' '.join(abstractText.itertext())
     logger.info("Done parsing: {}.".format(file_name))
     return pmid2abstract
 
 
-if __name__ == '__main__':
-    extract_all_abstracts()
+def search_abstract(gene: str,
+                    pmid2abstract: dict = None) -> dict:
+    """
+    Search for abstracts for a gene. This is a simple text match for words and should be improved in the future.
+    :param gene:
+    :param pmid2abstract:
+    :return:
+    """
+    if pmid2abstract is None:
+        pmid2abstract = load_pmid2abstract()
+    logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
+    found = {}
+    gene = gene.lower()
+    for pmid in pmid2abstract.keys():
+        abstract = pmid2abstract[pmid]
+        if gene in abstract.lower():
+            found[pmid] = abstract
+    return found
+
+#
+# if __name__ == '__main__':
+#     extract_all_abstracts()
