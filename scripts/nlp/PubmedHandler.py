@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
 OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
 MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
-MAX_WORKER = 8
+MAX_WORKER = 12
 
 # Cache loaded pubmed abstracts, which should be big
 _pmid2abstract = None
@@ -217,9 +217,10 @@ def load_pubmed_abstract(dir_name: str,
     return text_list
 
 
-def sample_pmid2abstract(pmid2abstract: dict) -> dict:
+def sample_pmid2abstract(pmid2abstract: dict,
+                         k: int = 1000) -> dict:
     # For local test
-    pmids = random.choices(list(pmid2abstract), k = 1000)
+    pmids = random.choices(list(pmid2abstract), k = k)
     pmid2abstract = {pmid: pmid2abstract[pmid] for pmid in pmids}
     logger.info("The size of pmid2abstract: {}".format(len(pmid2abstract)))
     return pmid2abstract
@@ -241,10 +242,10 @@ def embed_abstracts():
     Embedding all pubmed abstracts
     :return:
     """
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used before embedding: {} MB.".format(mem))
     pmid2abstract = load_pmid2abstract()
     pmid2abstract = sample_pmid2abstract(pmid2abstract)
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used after loading abstracts but before embedding: {} MB.".format(mem))
     time0 = time.time()
     # Try to use multiple processes
     with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
