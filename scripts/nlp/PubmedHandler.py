@@ -5,13 +5,18 @@ import gzip
 import logging
 import os
 import pickle
+import random
+import re
 import time
+import xml.etree.ElementTree as et
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
+from typing import List
 from urllib.request import urlopen
-import xml.etree.ElementTree as et
 
 import psutil
+
+import TextEmbedder as embedder
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -19,8 +24,10 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
 OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
 MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
-MAX_WORKER = 12
+MAX_WORKER = 8
 
+# Cache loaded pubmed abstracts, which should be big
+_pmid2abstract = None
 
 def ensure_out_dir(dir_name: str):
     path = Path(dir_name)
@@ -95,8 +102,10 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
 
 
 def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl") -> dict:
+    logger.info("Loading saved pmid2abstract...")
     file = open(file_name, "rb")
     pmid2abstract = pickle.load(file)
+    logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
     return pmid2abstract
 
 
@@ -133,25 +142,131 @@ def extract_abstract(file_name: str,
     return pmid2abstract
 
 
-def search_abstract(gene: str,
-                    pmid2abstract: dict = None) -> dict:
+def search_abstract(gene: str) -> dict:
     """
     Search for abstracts for a gene. This is a simple text match for words and should be improved in the future.
     :param gene:
     :param pmid2abstract:
     :return:
     """
-    if pmid2abstract is None:
-        pmid2abstract = load_pmid2abstract()
-    logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
+    global _pmid2abstract
+    if _pmid2abstract is None:
+        _pmid2abstract = load_pmid2abstract()
     found = {}
     gene = gene.lower()
-    for pmid in pmid2abstract.keys():
-        abstract = pmid2abstract[pmid]
+    for pmid in _pmid2abstract.keys():
+        abstract = _pmid2abstract[pmid]
         if gene in abstract.lower():
             found[pmid] = abstract
     return found
 
-#
-# if __name__ == '__main__':
-#     extract_all_abstracts()
+
+def load_pubmed_abstract(dir_name: str,
+                         gene: str = 'TANC1') -> List[str]:
+    """
+    Load the downloaded abstract text from pubmed into a single string text.
+    The implmentation may not be robust enough and should be done more test.
+    :param file_name:
+    :return:
+    """
+    file_name = dir_name + 'abstract-{}-set.txt'.format(gene)
+    text_list = []
+    after_title = False
+    is_in_title = False
+    title = ''
+    after_title = False
+    is_in_abstract = False
+    before_abstract = False
+    abstract = ''
+    file = open(file_name, 'r')
+    for line in file:
+        line = line.strip(' |\n')
+        if re.match("^\\d*\\. \\w*", line):
+            # Commit
+            if len(title) > 0 and len(abstract) > 0:
+                # See https://colab.research.google.com/drive/12hfBveGHRsxhPIUMmJYrll2lFU4fOX06
+                # for use [SEP]
+                text_list.append(title + "[SEP]" + abstract)
+                title = ''
+                abstract = ''
+                after_title = False
+            continue
+        if len(line) == 0:
+            if before_abstract:
+                before_abstract = False
+                is_in_abstract = True
+            elif is_in_abstract:
+                is_in_abstract = False
+            elif is_in_title:
+                is_in_title = False
+                after_title = True
+            elif not after_title:
+                is_in_title = True
+        elif line.startswith('Author information') or line.startswith('Erratum in'):
+            before_abstract = True
+            is_in_abstract = False
+        else:
+            if is_in_title and not after_title:
+                title = title + " " + line
+            elif is_in_abstract:
+                abstract = abstract + " " + line
+    # Pick up the last one
+    if len(title) > 0 and len(abstract) > 0:
+        text_list.append(title + "[SEP]" + abstract)
+    file.close()
+    return text_list
+
+
+def sample_pmid2abstract(pmid2abstract: dict) -> dict:
+    # For local test
+    pmids = random.choices(list(pmid2abstract), k = 1000)
+    pmid2abstract = {pmid: pmid2abstract[pmid] for pmid in pmids}
+    logger.info("The size of pmid2abstract: {}".format(len(pmid2abstract)))
+    return pmid2abstract
+
+
+_sentence_transformer = None
+
+
+def embed_abstract(pmid, abstract):
+    # logger.info("{}: {}".format(pmid, abstract[0:30]))
+    global _sentence_transformer
+    if _sentence_transformer is None:
+        _sentence_transformer = embedder.create_sentence_transformer()
+    return {pmid: _sentence_transformer.encode(abstract)}
+
+
+def embed_abstracts():
+    """
+    Embedding all pubmed abstracts
+    :return:
+    """
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used before embedding: {} MB.".format(mem))
+    pmid2abstract = load_pmid2abstract()
+    pmid2abstract = sample_pmid2abstract(pmid2abstract)
+    time0 = time.time()
+    # Try to use multiple processes
+    with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
+        pmids = list(pmid2abstract.keys())
+        abstracts = list(pmid2abstract.values())
+        results = executor.map(embed_abstract,
+                               pmids,
+                               abstracts)
+    time1 = time.time()
+    logger.info("Done embedding: {} seconds.".format(time1 - time0))
+    logger.info("Starting merging dicts...")
+    pmid2embedding = {}
+    for result in results:
+        pmid2embedding.update(result)
+    time2 = time.time()
+    logger.info("Done merging: {} seconds.".format(time2 - time1))
+    logger.info("Total embedding: {}.".format(len(pmid2embedding)))
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used: {} MB.".format(mem))
+    file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
+    pickle.dump(pmid2embedding, file)
+
+
+if __name__ == '__main__':
+    embed_abstracts()
