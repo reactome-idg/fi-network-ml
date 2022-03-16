@@ -18,13 +18,16 @@ import psutil
 
 import TextEmbedder as embedder
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    # filename={}
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 logger = logging.getLogger(__name__)
 
 DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
 OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
 MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
-MAX_WORKER = 12
+MAX_WORKER = 12 # Use 12 at MacPro
 
 # Cache loaded pubmed abstracts, which should be big
 _pmid2abstract = None
@@ -229,12 +232,12 @@ def sample_pmid2abstract(pmid2abstract: dict,
 _sentence_transformer = None
 
 
-def embed_abstract(pmid, abstract):
+def embed_abstract(abstract):
     # logger.info("{}: {}".format(pmid, abstract[0:30]))
     global _sentence_transformer
     if _sentence_transformer is None:
         _sentence_transformer = embedder.create_sentence_transformer()
-    return {pmid: _sentence_transformer.encode(abstract)}
+    return _sentence_transformer.encode(abstract)
 
 
 def embed_abstracts():
@@ -243,25 +246,21 @@ def embed_abstracts():
     :return:
     """
     pmid2abstract = load_pmid2abstract()
-    pmid2abstract = sample_pmid2abstract(pmid2abstract)
+    pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
     logger.info("Memory used after loading abstracts but before embedding: {} MB.".format(mem))
     time0 = time.time()
     # Try to use multiple processes
+    pmids = list(pmid2abstract.keys())
+    abstracts = list(pmid2abstract.values())
+    pmid2embedding = {}
     with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
-        pmids = list(pmid2abstract.keys())
-        abstracts = list(pmid2abstract.values())
-        results = executor.map(embed_abstract,
-                               pmids,
-                               abstracts)
+        for pmid, embedding in zip(pmids, executor.map(embed_abstract, abstracts)):
+            pmid2embedding[pmid] = embedding
+            if (len(pmid2embedding)) % 100 == 0:
+                logger.info("Done: {}: ".format(len(pmid2embedding)))
     time1 = time.time()
     logger.info("Done embedding: {} seconds.".format(time1 - time0))
-    logger.info("Starting merging dicts...")
-    pmid2embedding = {}
-    for result in results:
-        pmid2embedding.update(result)
-    time2 = time.time()
-    logger.info("Done merging: {} seconds.".format(time2 - time1))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
     logger.info("Memory used: {} MB.".format(mem))
