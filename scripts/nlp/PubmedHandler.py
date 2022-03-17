@@ -254,11 +254,14 @@ def embed_abstracts():
     pmids = list(pmid2abstract.keys())
     abstracts = list(pmid2abstract.values())
     pmid2embedding = {}
+    cache_file_name = OUT_DIR + "/pmid2embedding_cache.pkl"
     with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
         for pmid, embedding in zip(pmids, executor.map(embed_abstract, abstracts)):
             pmid2embedding[pmid] = embedding
             if (len(pmid2embedding)) % 100 == 0:
                 logger.info("Done: {}: ".format(len(pmid2embedding)))
+                # logger.info("Caching...")
+                # cache_obj(pmid2embedding, cache_file_name)
     time1 = time.time()
     logger.info("Done embedding: {} seconds.".format(time1 - time0))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
@@ -266,6 +269,18 @@ def embed_abstracts():
     logger.info("Memory used: {} MB.".format(mem))
     file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
     pickle.dump(pmid2embedding, file)
+
+
+def cache_obj(obj, file):
+    # First check if the back-up file is there
+    path_bak = Path(file + ".bak")
+    if path_bak.exists():
+        path_bak.unlink() # Delete this file
+    path = Path(file)
+    if path.exists():
+        path.rename(file + ".bak")
+    file = open(file, "wb")
+    pickle.dump(obj, file)
 
 
 if __name__ == '__main__':
