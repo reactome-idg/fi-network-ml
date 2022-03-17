@@ -8,6 +8,7 @@ import pickle
 import random
 import re
 import time
+import ray
 import xml.etree.ElementTree as et
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
@@ -18,8 +19,13 @@ import psutil
 
 import TextEmbedder as embedder
 
+# A much more efficient parallel computing to avoid using buggy Python version
+# See this for more information: https://towardsdatascience.com/10x-faster-parallel-python-without-python-multiprocessing-e5017c93cce1
+
+# file_name = 'PubmedHandler_031722.log'
+file_name = None
 logging.basicConfig(level=logging.INFO,
-                    # filename={}
+                    filename=file_name,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
@@ -27,7 +33,7 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
 OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
 MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
-MAX_WORKER = 12 # Use 12 at MacPro
+MAX_WORKER = psutil.cpu_count(logical=False)
 
 # Cache loaded pubmed abstracts, which should be big
 _pmid2abstract = None
@@ -260,10 +266,43 @@ def embed_abstracts():
             pmid2embedding[pmid] = embedding
             if (len(pmid2embedding)) % 100 == 0:
                 logger.info("Done: {}: ".format(len(pmid2embedding)))
-                # logger.info("Caching...")
-                # cache_obj(pmid2embedding, cache_file_name)
+                logger.info("Caching...")
+                cache_obj(pmid2embedding, cache_file_name)
     time1 = time.time()
     logger.info("Done embedding: {} seconds.".format(time1 - time0))
+    logger.info("Total embedding: {}.".format(len(pmid2embedding)))
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used: {} MB.".format(mem))
+    file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
+    pickle.dump(pmid2embedding, file)
+
+
+def embed_abstracts_via_ray():
+    """
+    Embedding all pubmed abstracts
+    :return:
+    """
+    pmid2abstract = load_pmid2abstract()
+    pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used after loading abstracts but before embedding: {} MB.".format(mem))
+    time0 = time.time()
+    # Try to use multiple processes via ray
+    ray.init(num_cpus=MAX_WORKER)
+    logger.info("Initializing {} ray actors...".format(MAX_WORKER))
+    embedding_actors = [AbstractEmbedder.remote() for _ in range(MAX_WORKER)]
+    counter = 0
+    for pmid, abstract in pmid2abstract.items():
+        embedding_actors[counter % MAX_WORKER].embed.remote(pmid, abstract)
+        counter += 1
+    time1 = time.time()
+    logger.info("Done embedding: {} seconds.".format(time1 - time0))
+    logger.info("Starting merging...")
+    pmid2embedding = {}
+    for embedding_actor in embedding_actors:
+        pmid2embedding.update(ray.get(embedding_actor.get_pmid2embedding.remote()))
+    time2 = time.time()
+    logger.info("Done merging: {} seconds.".format(time2 - time1))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
     logger.info("Memory used: {} MB.".format(mem))
@@ -283,5 +322,24 @@ def cache_obj(obj, file):
     pickle.dump(obj, file)
 
 
+# For ray worker
+@ray.remote
+class AbstractEmbedder(object):
+    def __init__(self):
+        self.sentence_transfomer = embedder.create_sentence_transformer()
+        self.pmid2embedding = dict()
+        logging.info("Initialized AbstractEmbedder: {}".format(self))
+
+    def embed(self, pmid, abstract):
+        self.pmid2embedding[pmid] = embedder.sentence_embed(abstract,
+                                                            self.sentence_transfomer)
+        if len(self.pmid2embedding) % 100 == 0:
+            logging.info("{}: {}.".format(self, len(self.pmid2embedding)))
+
+    def get_pmid2embedding(self):
+        self.sentence_transfomer = None
+        return self.pmid2embedding
+
+
 if __name__ == '__main__':
-    embed_abstracts()
+    embed_abstracts_via_ray()
