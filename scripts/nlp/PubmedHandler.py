@@ -291,18 +291,33 @@ def embed_abstracts_via_ray():
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
     embedding_actors = [AbstractEmbedder.remote() for _ in range(MAX_WORKER)]
-    counter = 0
-    for pmid, abstract in pmid2abstract.items():
-        embedding_actors[counter % MAX_WORKER].embed.remote(pmid, abstract)
-        counter += 1
-    time1 = time.time()
-    logger.info("Done embedding: {} seconds.".format(time1 - time0))
-    logger.info("Starting merging...")
+    pmids = list(pmid2abstract.keys())
+    start = 0
+    step = 200
+    end = start + step
     pmid2embedding = {}
-    for embedding_actor in embedding_actors:
-        pmid2embedding.update(ray.get(embedding_actor.get_pmid2embedding.remote()))
-    time2 = time.time()
-    logger.info("Done merging: {} seconds.".format(time2 - time1))
+    cache_file_name = OUT_DIR + "/pmid2embedding_cache.pkl"
+    while start < len(pmid2abstract):
+        pmids_sub = pmids[start:end]
+        counter = 0
+        for pmid in pmids_sub:
+            abstract = pmid2abstract[pmid]
+            embedding_actors[counter % MAX_WORKER].embed.remote(pmid, abstract)
+            counter += 1
+        time1 = time.time()
+        logger.info("Starting embedding...")
+        for embedding_actor in embedding_actors:
+            pmid2embedding.update(ray.get(embedding_actor.get_pmid2embedding.remote()))
+            embedding_actor.clean.remote()
+        time2 = time.time()
+        logger.info("Done merging for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
+        cache_obj(pmid2embedding, cache_file_name)
+        start = end
+        end += step
+        if end > len(pmid2abstract):
+            end = len(pmid2abstract)
+    time3 = time.time()
+    logger.info("Total time: {}.".format(time3 - time0))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
     logger.info("Memory used: {} MB.".format(mem))
@@ -328,17 +343,20 @@ class AbstractEmbedder(object):
     def __init__(self):
         self.sentence_transfomer = embedder.create_sentence_transformer()
         self.pmid2embedding = dict()
-        logging.info("Initialized AbstractEmbedder: {}".format(self))
+        # Apparently logging cannot work in at ray. Using print.
+        print("Initialized AbstractEmbedder: {}".format(self))
 
     def embed(self, pmid, abstract):
         self.pmid2embedding[pmid] = embedder.sentence_embed(abstract,
                                                             self.sentence_transfomer)
-        if len(self.pmid2embedding) % 100 == 0:
-            logging.info("{}: {}.".format(self, len(self.pmid2embedding)))
+        if len(self.pmid2embedding) % 25 == 0:
+            print("{}: {}.".format(self, len(self.pmid2embedding)))
 
     def get_pmid2embedding(self):
-        self.sentence_transfomer = None
         return self.pmid2embedding
+
+    def clean(self):
+        self.pmid2embedding.clear()
 
 
 if __name__ == '__main__':
