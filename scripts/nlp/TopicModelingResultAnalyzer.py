@@ -174,6 +174,9 @@ def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
     workers = [CosineSimilarityCalculator.remote() for _ in range(num_workers)]
     pmids = list(pmid2emebedding.keys())
     start = 0
+    # For the final run
+    # Use a little bit buffer for the total jobs
+    # step = 1000 * MAX_WORKER
     step = 200
     end = start + step
     pmid2similarity = {}

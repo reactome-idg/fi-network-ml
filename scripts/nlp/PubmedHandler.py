@@ -297,6 +297,9 @@ def embed_abstracts_via_ray():
     embedding_actors = [AbstractEmbedder.remote() for _ in range(MAX_WORKER)]
     pmids = list(pmid2abstract.keys())
     start = 0
+    # For the final run
+    # Use a little bit buffer for the total jobs
+    # step = 1000 * MAX_WORKER
     step = 200
     end = start + step
     pmid2embedding = {}

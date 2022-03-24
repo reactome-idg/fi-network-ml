@@ -24,6 +24,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # DIR = '/ssd/d0/ml/nlp/'
+# At mac pro
+#DIR = "../../results/impact_analysis/nlp_files/"
 DIR = '/Volumes/ssd/results/reactome-idg/fi-network-ml/impact_analysis/nlp_files/'
 # PATHWAY_TEXT_FILE = DIR + "PathwayText_111921.txt"
 PATHWAY_TEXT_FILE = DIR + "PathwayText_120721.txt"
@@ -389,9 +391,11 @@ def sort_pubmed_abstracts_on_similarity():
     ph.log_mem(logger)
     # For test
     pmid2embedding = ph.sample_pmid2abstract(pathway2embedding, 100)
+    logger.info("Total pmid2emedding for similarity: {}.".format(len(pmid2embedding)))
     pmid2similarity = resultAnalyzer.calculate_pathway_abstract_cosine_similarity_via_ray(pmid2embedding,
                                                                                           pathway2embedding)
     time2 = time.time()
+    logger.info("Total pmid2similarity: {}.".format(len(pmid2similarity)))
     logger.info("Time for similarity: {} seconds.".format(time2 - time1))
     ph.log_mem(logger)
     df = pd.DataFrame(pmid2similarity.items(), columns=('PMID', 'Similarity'))
