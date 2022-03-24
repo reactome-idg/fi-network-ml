@@ -80,8 +80,7 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
     file = Path(dir_name)
     if not file.exists():
         raise FileNotFoundError("Cannot find directory: {}".format(dir_name))
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info('memory used before loading: {} M.'.format(mem))
+    log_mem()
     time0 = time.time()
     # Try to run in a multi-process way
     with ProcessPoolExecutor(max_workers=MAX_WORKER) as executor:
@@ -96,8 +95,7 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
                                      # two dict merging. This should be faster since there is no need to unpack the merged
                                      # dict repeatedly.
     logger.info("Total pmid2abstract: {}".format(len(pmid2abstract)))
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info('memory used after loading: {} M.'.format(mem))
+    log_mem()
     time1 = time.time()
     logger.info("Total time used for merging: {} seconds.".format(time1 - time01))
     # Save the object
@@ -114,8 +112,17 @@ def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl") -> dict:
     logger.info("Loading saved pmid2abstract...")
     file = open(file_name, "rb")
     pmid2abstract = pickle.load(file)
+    file.close()
     logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
     return pmid2abstract
+
+
+def load_pmid2embedding(file_name: str = OUT_DIR + "/pmid2embedding.pkl") -> dict:
+    logger.info("Loading saved pmid2embedding...")
+    file = open(file_name, "rb")
+    pmid2embedding = pickle.load(file)
+    logger.info("Total embedding loaded: {}.".format(len(pmid2embedding)))
+    return pmid2embedding
 
 
 def extract_abstract(file_name: str,
@@ -253,8 +260,7 @@ def embed_abstracts():
     """
     pmid2abstract = load_pmid2abstract()
     pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used after loading abstracts but before embedding: {} MB.".format(mem))
+    log_mem()
     time0 = time.time()
     # Try to use multiple processes
     pmids = list(pmid2abstract.keys())
@@ -271,8 +277,7 @@ def embed_abstracts():
     time1 = time.time()
     logger.info("Done embedding: {} seconds.".format(time1 - time0))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used: {} MB.".format(mem))
+    log_mem()
     file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
     pickle.dump(pmid2embedding, file)
 
@@ -284,8 +289,7 @@ def embed_abstracts_via_ray():
     """
     pmid2abstract = load_pmid2abstract()
     pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used after loading abstracts but before embedding: {} MB.".format(mem))
+    log_mem()
     time0 = time.time()
     # Try to use multiple processes via ray
     ray.init(num_cpus=MAX_WORKER)
@@ -319,10 +323,14 @@ def embed_abstracts_via_ray():
     time3 = time.time()
     logger.info("Total time: {}.".format(time3 - time0))
     logger.info("Total embedding: {}.".format(len(pmid2embedding)))
-    mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used: {} MB.".format(mem))
+    log_mem()
     file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
     pickle.dump(pmid2embedding, file)
+
+
+def log_mem(logger = logger):
+    mem = psutil.Process().memory_info().rss / (1024 * 1024)
+    logger.info("Memory used: {} MB.".format(mem))
 
 
 def cache_obj(obj, file):
@@ -335,6 +343,7 @@ def cache_obj(obj, file):
         path.rename(file + ".bak")
     file = open(file, "wb")
     pickle.dump(obj, file)
+    file.close()
 
 
 # For ray worker

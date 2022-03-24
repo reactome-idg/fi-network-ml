@@ -1,5 +1,5 @@
 # This script is used to process the topic analysis results.
-
+import psutil
 from sentence_transformers import util
 import numpy as np
 import pandas as pd
@@ -8,6 +8,9 @@ import statsmodels as stats
 import math
 import scanpy as sc
 import plotly.express as px
+import ray
+import logging
+import time
 
 MINIMUM_SCORE = 1.0e-22
 RANDOM_STATE = 123456
@@ -153,3 +156,64 @@ def scale_scores(scores: list):
         else:
             scaled_score.append((score - min_score) / (max_score - min_score))
     return scaled_score
+
+
+def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
+                                                         pathway2embedding):
+    """
+    Use ray to parallel the calculation of cosine similiarty between pathways
+    and abstracts.
+    Note: This method is very similar to embed_abstracts_via_ray() in PubmedHandler.py.
+    :param pmid2emebedding:
+    :param pathway2embedding:
+    :return:
+    """
+    num_workers = psutil.cpu_count(logical=False)
+    ray.init(num_cpus=num_workers)
+    logging.info("Initializing {} ray actors...".format(num_workers))
+    workers = [CosineSimilarityCalculator.remote() for _ in range(num_workers)]
+    pmids = list(pmid2emebedding.keys())
+    start = 0
+    step = 200
+    end = start + step
+    pmid2similarity = {}
+    while start < len(pmid2emebedding):
+        pmids_sub = pmids[start:end]
+        counter = 0
+        for pmid in pmids_sub:
+            embedding = pmid2emebedding[pmid]
+            workers[counter % num_workers].calculate_similarity.remote(pmid,
+                                                                       embedding,
+                                                                       pathway2embedding)
+            counter += 1
+        time1 = time.time()
+        logging.info("Starting calculation...")
+        for worker in workers:
+            pmid2similarity.update(ray.get(worker.get_pmid2similarity.remote()))
+            worker.clean.remote()
+        time2 = time.time()
+        logging.info("Done calculation for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
+        start = end
+        end += step
+        if end > len(pmid2emebedding):
+            end = len(pmid2emebedding)
+    return pmid2similarity
+
+
+@ray.remote
+class CosineSimilarityCalculator(object):
+    def __init__(self):
+        self.pmid2similarity = dict()
+        print("Initialized CosineSimilarityCalculator: {}.".format(self))
+
+    def calculate_similarity(self, pmid, embedding, pathway2embedding):
+        pathway2similarity = calculate_cosine_similiarity(embedding,
+                                                          pathway2embedding)
+        similarity_mean = np.mean(list(pathway2similarity.values()))
+        self.pmid2similarity[pmid] = similarity_mean
+
+    def get_pmid2similarity(self):
+        return self.pmid2similarity
+
+    def clean(self):
+        self.pmid2similarity.clear()

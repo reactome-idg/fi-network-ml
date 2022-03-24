@@ -13,6 +13,7 @@ import scanpy as sc
 import plotly.express as px
 from sentence_transformers import SentenceTransformer
 import logging
+import psutil
 
 import UniProtHandler as uph
 import PubmedHandler as ph
@@ -162,9 +163,11 @@ def run_umap(pathway2embedding: Union[dict, str] = PATHWAY_EMBEDDING_FILE,
 
 
 def load_pathway2embedding(file: str = PATHWAY_EMBEDDING_FILE) -> dict:
+    logger.info("Loading pre-generated pathway2embedding...")
     file = open(file, "rb")
     pathway2embedding = pickle.load(file)
     file.close()
+    logger.info("Done loading. The size of pathway2embeding: {}".format(len(pathway2embedding)))
     return pathway2embedding
 
 
@@ -378,32 +381,30 @@ def sort_pubmed_abstracts_on_similarity():
     pathway embeddings and the abstract embedding.
     :return:
     """
-    logger.info("Loading pre-generated pathway2embedding...")
-    pathway2embedding = load_pathway2embedding()
-    logger.info("Done loading. The size of pathway2embeding: {}".format(len(pathway2embedding)))
-    pmid2abstract = ph.load_pmid2abstract()
     time0 = time.time()
-
-    # For local test
-    pmid2abstract = ph.sample_pmid2abstract(pmid2abstract)
-
-    pmid2embedding = embedder.generate_sentence_embedding(pmid2abstract)
-    time01 = time.time()
-    logger.info("Time for embedding: {} seconds.".format(time01 - time0))
-    pmid2similarity = {}
-    for pmid, embedding in pmid2embedding.items():
-        pathway2similarity = resultAnalyzer.calculate_cosine_similiarity(embedding,
-                                                                         pathway2embedding)
-        similarity_mean = np.mean(list(pathway2similarity.values()))
-        pmid2similarity[pmid] = similarity_mean
+    pathway2embedding = load_pathway2embedding()
+    pmid2embedding = ph.load_pmid2embedding()
     time1 = time.time()
-    logger.info("Time for similarity: {} seconds.".format(time1 - time01))
+    logger.info("Time used to load pathway2embedding and pmid2embedding: {} seconds.".format(time1 - time0))
+    ph.log_mem(logger)
+    # For test
+    pmid2embedding = ph.sample_pmid2abstract(pathway2embedding, 100)
+    pmid2similarity = resultAnalyzer.calculate_pathway_abstract_cosine_similarity_via_ray(pmid2embedding,
+                                                                                          pathway2embedding)
+    time2 = time.time()
+    logger.info("Time for similarity: {} seconds.".format(time2 - time1))
+    ph.log_mem(logger)
     df = pd.DataFrame(pmid2similarity.items(), columns=('PMID', 'Similarity'))
-    df = df.sort_values(by = 'Similarity')
+    df.sort_values(by='Similarity', inplace=True, ascending=False)
+    time3 = time.time()
+    logger.info("Time for sorting in DataFrame: {}.".format(time3 - time2))
+    ph.log_mem(logger)
     # Need to cache it into a file
-    file = DIR + "pmid2reactome_similarity_031122.pkl"
+    file = DIR + "pmid2reactome_similarity.pkl"
     file = open(file, "wb")
-    pickle.dump(pmid2similarity, file)
+    pickle.dump(df, file)
+    time4 = time.time()
+    logger.info("Time for saving the dataframe: {}.".format(time4 - time3))
     return df
 
 
