@@ -171,26 +171,25 @@ def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
     num_workers = psutil.cpu_count(logical=False)
     ray.init(num_cpus=num_workers)
     logging.info("Initializing {} ray actors...".format(num_workers))
-    workers = [CosineSimilarityCalculator.remote() for _ in range(num_workers)]
+    workers = [CosineSimilarityCalculator.remote(pathway2embedding) for _ in range(num_workers)]
     pmids = list(pmid2emebedding.keys())
     start = 0
     # For the final run
     # Use a little bit buffer for the total jobs
-    # step = 1000 * MAX_WORKER
+    # step = 1000 * num_workers
     step = 200
     end = start + step
     pmid2similarity = {}
     while start < len(pmid2emebedding):
         pmids_sub = pmids[start:end]
         counter = 0
+        time1 = time.time()
+        logging.info("Starting calculation...")
         for pmid in pmids_sub:
             embedding = pmid2emebedding[pmid]
             workers[counter % num_workers].calculate_similarity.remote(pmid,
-                                                                       embedding,
-                                                                       pathway2embedding)
+                                                                       embedding)
             counter += 1
-        time1 = time.time()
-        logging.info("Starting calculation...")
         for worker in workers:
             pmid2similarity.update(ray.get(worker.get_pmid2similarity.remote()))
             worker.clean.remote()
@@ -205,13 +204,15 @@ def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
 
 @ray.remote
 class CosineSimilarityCalculator(object):
-    def __init__(self):
+    def __init__(self, pathway2embedding):
+        self.pathway2embedding = pathway2embedding
         self.pmid2similarity = dict()
+        # Logging cannot work here
         print("Initialized CosineSimilarityCalculator: {}.".format(self))
 
-    def calculate_similarity(self, pmid, embedding, pathway2embedding):
+    def calculate_similarity(self, pmid, embedding):
         pathway2similarity = calculate_cosine_similiarity(embedding,
-                                                          pathway2embedding)
+                                                          self.pathway2embedding)
         similarity_mean = np.mean(list(pathway2similarity.values()))
         self.pmid2similarity[pmid] = similarity_mean
 

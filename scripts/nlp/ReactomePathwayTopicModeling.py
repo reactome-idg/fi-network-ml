@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 # DIR = '/ssd/d0/ml/nlp/'
 # At mac pro
-#DIR = "../../results/impact_analysis/nlp_files/"
-DIR = '/Volumes/ssd/results/reactome-idg/fi-network-ml/impact_analysis/nlp_files/'
+DIR = "../../results/impact_analysis/nlp_files/"
+# DIR = '/Volumes/ssd/results/reactome-idg/fi-network-ml/impact_analysis/nlp_files/'
 # PATHWAY_TEXT_FILE = DIR + "PathwayText_111921.txt"
 PATHWAY_TEXT_FILE = DIR + "PathwayText_120721.txt"
 # The lanugage model to be used
@@ -390,13 +390,18 @@ def sort_pubmed_abstracts_on_similarity():
     logger.info("Time used to load pathway2embedding and pmid2embedding: {} seconds.".format(time1 - time0))
     ph.log_mem(logger)
     # For test
-    pmid2embedding = ph.sample_pmid2abstract(pathway2embedding, 100)
+    # pmid2embedding = ph.sample_pmid2abstract(pmid2embedding, 100)
     logger.info("Total pmid2emedding for similarity: {}.".format(len(pmid2embedding)))
     pmid2similarity = resultAnalyzer.calculate_pathway_abstract_cosine_similarity_via_ray(pmid2embedding,
                                                                                           pathway2embedding)
     time2 = time.time()
     logger.info("Total pmid2similarity: {}.".format(len(pmid2similarity)))
     logger.info("Time for similarity: {} seconds.".format(time2 - time1))
+    file = DIR + "pmid2reactome_similarity.pkl"
+    file = open(file, 'wb')
+    pickle.dump(pmid2similarity, file)
+    file.close()
+
     ph.log_mem(logger)
     df = pd.DataFrame(pmid2similarity.items(), columns=('PMID', 'Similarity'))
     df.sort_values(by='Similarity', inplace=True, ascending=False)
@@ -404,7 +409,7 @@ def sort_pubmed_abstracts_on_similarity():
     logger.info("Time for sorting in DataFrame: {}.".format(time3 - time2))
     ph.log_mem(logger)
     # Need to cache it into a file
-    file = DIR + "pmid2reactome_similarity.pkl"
+    file = DIR + "pmid2reactome_similarity_df.pkl"
     file = open(file, "wb")
     pickle.dump(df, file)
     time4 = time.time()
