@@ -10,10 +10,8 @@ import bertopic
 import numpy as np
 import pandas as pd
 import scanpy as sc
-import plotly.express as px
 from sentence_transformers import SentenceTransformer
 import logging
-import psutil
 
 import UniProtHandler as uph
 import PubmedHandler as ph
@@ -89,6 +87,7 @@ def load_pathway_document(file_name: str = PATHWAY_TEXT_FILE) -> Dict[str, List[
     file.close()
     return pathway2text
 
+
 def generate_topic_sentence_embedding(pathway2doc: Union[dict, str] = PATHWAY_TEXT_FILE,
                                       save: str = None) -> Dict[str, List[np.ndarray]]:
     if isinstance(pathway2doc, str):
@@ -99,6 +98,7 @@ def generate_topic_sentence_embedding(pathway2doc: Union[dict, str] = PATHWAY_TE
         pickle.dump(pathway2embedding, file)
         file.close()
     return pathway2embedding
+
 
 # To be run at the server
 # generate_topic_sentence_embedding(save=PATHWAY_EMBEDDING_FILE)
@@ -185,7 +185,7 @@ def load_pathway2topic(file: str = PATHWAY_2_TOPIC_FILE) -> dict:
 
 def load_impact_results(gene: str = None,
                         file: str = IMPACT_ANALYSIS_FILE) -> pd.DataFrame:
-    df = pd.read_csv(file, sep = '\t')
+    df = pd.read_csv(file, sep='\t')
     if gene is not None:
         df = df.loc[df['Gene'] == gene, :]
     return df
@@ -258,6 +258,84 @@ def calculate_cor_impact_cosine_via_sentence_transformer(gene: str,  # Three gen
     return pathway2embedding
 
 
+def batch_analyze_cor_impact_cosine():
+    """
+    Perform batch analysis using all downloaded pubmed abstracts.
+    :return:
+    """
+    logger.info("Loading pathway embedding...")
+    pathway2embedding = load_pathway2embedding()
+    logger.info("Size of pathway2emebdding: {}.".format(len(pathway2embedding)))
+    logger.info("Loading abstract emebdding...")
+    pmid2emebdding = ph.load_pmid2embedding()
+    logger.info("Size of abstract2embedding: {}.".format(len(pmid2emebdding)))
+    ph.log_mem(logger)
+    # Need abstracts for search
+    logger.info("Load abstracts...")
+    pmid2abstract = ph.load_pmid2abstract()
+    # Cache the loaded abstracts to avoid re-loading
+    ph._pmid2abstract = pmid2abstract
+    logger.info("Size of pmid2abstract: {}.".format(len(pmid2abstract)))
+    ph.log_mem(logger)
+    logger.info("Load impact scores...")
+    # Load impact result as a DataFrame
+    impact_df = pd.read_csv(IMPACT_ANALYSIS_FILE, sep="\t")
+    logger.info("The shape of impact_df: {}.".format(impact_df.shape))
+    # Apparently there is a null gene included in the analysis. Need to exclude rows having for this!
+    impact_df = impact_df.dropna()
+    logger.info("Cleaned impact_df: {}.".format(impact_df.shape))
+    genes = impact_df['Gene'].unique()
+    for gene in genes:
+        print(gene)
+    logger.info("Total genes: {}.".format(genes))
+    # Keep all results in this DataFrame
+    cols = ["Gene", "Pearson", "Peason_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways"]
+    # Three types of impact scores
+    impact_score_types = ["FDR", "Average_Activation", "Average_Inhibition"]
+    impact_rows = [[], [], []]
+    counter = 0
+    time0 = time.time()
+    # For local test
+    genes = random.sample(genes.tolist(), 500)
+    logger.info("Genes subject to analysis: {}.".format(len(genes)))
+    for gene in genes:
+        logger.info("Handling gene: {}...".format(gene))
+        gene_abstracts = ph.search_abstract(gene)
+        logger.info("Found pmids: {}.".format(len(gene_abstracts)))
+        if len(gene_abstracts) == 0:
+            continue
+        gene_pmids = gene_abstracts.keys()
+        gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
+        if len(gene_pmid2embedding) == 0:
+            logger.info("No abstract emebedding for {}.".format(gene))
+            continue
+        gene_pathway2cosine = resultAnalyzer.calculate_cosine_similiarity(list(gene_pmid2embedding.values()),
+                                                                          pathway2embedding)
+        gene_impact_scores = impact_df.loc[impact_df['Gene'] == gene, ]
+        for i in range(len(impact_score_types)):
+            gene_cors = resultAnalyzer.calculate_cor_impact_cosine(gene_pathway2cosine,
+                                                                   gene_impact_scores,
+                                                                   impact_score_types[i])
+            if gene_cors is None:
+                logger.info("No enough impacted pathways for analysis!")
+                continue;
+            gene_row = {cols[0]: gene,
+                        cols[1]: gene_cors[0][0],
+                        cols[2]: gene_cors[0][1],
+                        cols[3]: gene_cors[1].correlation,
+                        cols[4]: gene_cors[1].pvalue,
+                        cols[5]: gene_cors[2]}
+            impact_rows[i].append(gene_row)
+        counter += 1
+        # if counter == 2:
+        #     break;
+    logger.info("Total genes analyzed: {}.".format(counter))
+    time1 = time.time()
+    logger.info("Total time used: {} seconds.".format(time1 - time0))
+    ph.log_mem(logger)
+    return {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in range(len(impact_score_types))}
+
+
 def _prepare_sent_cor_analysis(gene: str,
                                pathway2embedding: dict):
     if pathway2embedding is None:
@@ -321,10 +399,10 @@ def plot_luna_nlp_cor_analysis(gene: str = 'UGT1A5') -> None:
         print("No impact results for gene {}.".format(gene))
         return
     resultAnalyzer.plot_cor_analysis(gene,
-                       impact_results,
-                       pathway2cosine,
-                       dir_name,
-                       use_pathway_name=False)
+                                     impact_results,
+                                     pathway2cosine,
+                                     dir_name,
+                                     use_pathway_name=False)
     # Perform correlation analysis here
     results = resultAnalyzer.calculate_cor_impact_cosine(pathway2cosine,
                                                          impact_results,
@@ -345,7 +423,7 @@ def plot_luna_nlp_cor_analysis(gene: str = 'UGT1A5') -> None:
     print(results)
 
 
-def run_luna_nlp_cor_analysis(dir_name = DIR + "../luna_nlp_results"):
+def run_luna_nlp_cor_analysis(dir_name=DIR + "../luna_nlp_results"):
     # Get the list files for analysis
     genes = []
     for file in os.listdir(dir_name):
@@ -418,4 +496,7 @@ def sort_pubmed_abstracts_on_similarity():
 
 
 if __name__ == '__main__':
-    sort_pubmed_abstracts_on_similarity()
+    results_dfs = batch_analyze_cor_impact_cosine()
+    for impact_type, results_df in results_dfs.items():
+        print("{}:\n{}".format(impact_type, results_df))
+# calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())

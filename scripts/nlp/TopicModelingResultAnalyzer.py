@@ -4,7 +4,7 @@ from sentence_transformers import util
 import numpy as np
 import pandas as pd
 from typing import Tuple
-import statsmodels as stats
+from scipy import stats
 import math
 import scanpy as sc
 import plotly.express as px
@@ -59,8 +59,10 @@ def calculate_cor_impact_cosine(pathway2cosine: dict,
             impact_score = -math.log10(impact_score)
         impact_list.append(impact_score)
         cos_list.append(cosine)
-    print("The size of list for cor: {}".format(len(cos_list)))
-    return stats.pearsonr(cos_list, impact_list), stats.spearmanr(cos_list, impact_list)
+    if len(cos_list) < 10: # This is arbitray for the time being
+        return None
+    # print("The size of list for cor: {}".format(len(cos_list)))
+    return stats.pearsonr(cos_list, impact_list), stats.spearmanr(cos_list, impact_list), len(cos_list)
 
 
 def run_umap(embedding_matrix,
