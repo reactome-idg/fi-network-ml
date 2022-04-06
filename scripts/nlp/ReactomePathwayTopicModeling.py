@@ -285,9 +285,7 @@ def batch_analyze_cor_impact_cosine():
     impact_df = impact_df.dropna()
     logger.info("Cleaned impact_df: {}.".format(impact_df.shape))
     genes = impact_df['Gene'].unique()
-    for gene in genes:
-        print(gene)
-    logger.info("Total genes: {}.".format(genes))
+    logger.info("Total genes: {}.".format(len(genes)))
     # Keep all results in this DataFrame
     cols = ["Gene", "Pearson", "Peason_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways"]
     # Three types of impact scores
@@ -296,11 +294,16 @@ def batch_analyze_cor_impact_cosine():
     counter = 0
     time0 = time.time()
     # For local test
-    genes = random.sample(genes.tolist(), 500)
+    genes = random.sample(genes.tolist(), 100)
+    # genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
     logger.info("Genes subject to analysis: {}.".format(len(genes)))
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
-        gene_abstracts = ph.search_abstract(gene)
+        gene_names = uph.get_names(gene)
+        gene_abstracts = {}
+        for gene_name in gene_names:
+            gene_name_abstracts = ph.search_abstract(gene_name)
+            gene_abstracts.update(gene_name_abstracts)
         logger.info("Found pmids: {}.".format(len(gene_abstracts)))
         if len(gene_abstracts) == 0:
             continue
