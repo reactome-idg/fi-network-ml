@@ -108,12 +108,16 @@ def extract_all_abstracts(dir_name: str = OUT_DIR) -> dict:
     return pmid2abstract
 
 
-def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl") -> dict:
+def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl",
+                       need_lower_case: bool = False) -> dict:
     logger.info("Loading saved pmid2abstract...")
     file = open(file_name, "rb")
     pmid2abstract = pickle.load(file)
     file.close()
     logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
+    if need_lower_case:
+        for pmid, abstract in pmid2abstract.items():
+            pmid2abstract[pmid] = abstract.lower()
     return pmid2abstract
 
 
@@ -167,12 +171,12 @@ def search_abstract(gene: str) -> dict:
     """
     global _pmid2abstract
     if _pmid2abstract is None:
-        _pmid2abstract = load_pmid2abstract()
+        _pmid2abstract = load_pmid2abstract(need_lower_case=True)
     found = {}
     gene = gene.lower()
     for pmid in _pmid2abstract.keys():
         abstract = _pmid2abstract[pmid]
-        if gene in abstract.lower():
+        if gene in abstract:
             found[pmid] = abstract
     return found
 

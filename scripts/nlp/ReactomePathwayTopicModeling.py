@@ -299,11 +299,8 @@ def batch_analyze_cor_impact_cosine():
     logger.info("Genes subject to analysis: {}.".format(len(genes)))
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
-        gene_names = uph.get_names(gene)
-        gene_abstracts = {}
-        for gene_name in gene_names:
-            gene_name_abstracts = ph.search_abstract(gene_name)
-            gene_abstracts.update(gene_name_abstracts)
+        logger.info("Searching pubmed abstracts")
+        gene_abstracts = search_pubmed_abstracts(gene)
         logger.info("Found pmids: {}.".format(len(gene_abstracts)))
         if len(gene_abstracts) == 0:
             continue

@@ -8,7 +8,7 @@ SOURCE_FILE_NAME = "../../results/impact_analysis/uniprot/uniprot_protein_gene_n
 
 # cache loaded abstracts, which should be big
 _gene2names = None
-
+logger = logging.getLogger(__name__)
 
 def load_gene2othernames(file_name: str = SOURCE_FILE_NAME) -> dict:
     """
@@ -17,7 +17,7 @@ def load_gene2othernames(file_name: str = SOURCE_FILE_NAME) -> dict:
     :param file_name:
     :return:
     """
-    logging.info("Loading gene2othernames...")
+    logger.info("Loading gene2othernames...")
     df = pd.read_csv(file_name, sep="\t")
     gene2names = {}
     for i in range(df.shape[0]):
@@ -32,6 +32,7 @@ def load_gene2othernames(file_name: str = SOURCE_FILE_NAME) -> dict:
             protein_names = _parse_protein_names_via_split(df.iloc[i, 2])
             names.update(protein_names)
         gene2names[df.iloc[i, 3]] = names
+    logger.info("Done loading. Total genes: {}.".format(len(gene2names)))
     return gene2names
 
 
