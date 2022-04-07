@@ -166,28 +166,32 @@ def extract_abstract(file_name: str,
     return pmid2abstract
 
 
-def search_abstracts(gene: str) -> dict:
+def search_abstracts(gene: str,
+                     pmid2abstract: dict = None) -> dict:
     """
     Search for abstracts for a gene. This is a simple text match for words and should be improved in the future.
     :param gene:
     :param pmid2abstract:
     :return:
     """
-    global _pmid2abstract
-    # Make sure the lower case version of pubmed abstracts are used for this serach. This should
-    # reduce the time for text match quite a lot.
-    if _pmid2abstract is None:
-        _pmid2abstract = load_pmid2abstract(need_lower_case=True)
+    if pmid2abstract is None:
+        global _pmid2abstract
+        # Make sure the lower case version of pubmed abstracts are used for this serach. This should
+        # reduce the time for text match quite a lot.
+        if _pmid2abstract is None:
+            _pmid2abstract = load_pmid2abstract(need_lower_case=True)
+        pmid2abstract = _pmid2abstract
     found = []
     gene = gene.lower()
-    for pmid in _pmid2abstract.keys():
-        abstract = _pmid2abstract[pmid]
+    for pmid in pmid2abstract.keys():
+        abstract = pmid2abstract[pmid]
         if gene in abstract:
             found.append(pmid)
     return found
 
 
-def search_abstracts_via_all_names(gene: str) -> dict:
+def search_abstracts_via_all_names(gene: str,
+                                   pmid2abstract: dict = None) -> dict:
     """
     Search pubmed abstracts for a gene.
     :param gene:
@@ -197,7 +201,7 @@ def search_abstracts_via_all_names(gene: str) -> dict:
     names = uph.get_names(gene)
     pmids = set()
     for name in names:
-        pmids1 = search_abstracts(name)
+        pmids1 = search_abstracts(name, pmid2abstract)
         pmids.update(pmids1)
     return pmids
 
@@ -362,10 +366,15 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     :return:
     """
     logger.info("Total genes for searching: {}.".format(len(genes)))
+    global _pmid2abstract
+    # Make sure the lower case version of pubmed abstracts are used for this serach. This should
+    # reduce the time for text match quite a lot.
+    if _pmid2abstract is None:
+        _pmid2abstract = load_pmid2abstract(need_lower_case=True)
     # Try to use multiple processes via ray
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
-    searching_actors = [AbstractSearcher.remote() for _ in range(MAX_WORKER)]
+    searching_actors = [AbstractSearcher.remote(_pmid2abstract) for _ in range(MAX_WORKER)]
     start = 0
     # For the final run
     # Use a little bit buffer for the total jobs
@@ -397,6 +406,8 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     log_mem()
     file = open(OUT_DIR + "/gene2pmids.pkl", "wb")
     pickle.dump(gene2pmids, file)
+    for gene, pmids in gene2pmids.items():
+        print("{}: {}".format(gene, len(pmids)))
 
 
 def log_mem(logger1 = logger):
@@ -441,12 +452,13 @@ class AbstractEmbedder(object):
 
 @ray.remote
 class AbstractSearcher(object):
-    def __init__(self):
+    def __init__(self, pmid2abstract):
+        self.pmid2abstract = pmid2abstract
         self.gene2pmids = {}
         print("Initialized AbstractSearcher: {}.".format(self))
 
     def search(self, gene):
-        pmids = search_abstracts_via_all_names(gene)
+        pmids = search_abstracts_via_all_names(gene, self.pmid2abstract)
         if len(pmids) == 0:
             return # Don't do anything if nothing there
         self.gene2pmids[gene] = pmids

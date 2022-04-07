@@ -273,6 +273,7 @@ def search_abstracts_for_all_genes():
     genes = impact_df['Gene'].unique()
     logger.info("Total genes: {}.".format(len(genes)))
     genes = random.sample(genes.tolist(), 10)
+    genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
     ph.search_abstracts_for_all_via_ray(genes)
 
 
