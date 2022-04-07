@@ -10,6 +10,7 @@ import re
 import time
 from builtins import set
 
+import numpy as np
 import ray
 import xml.etree.ElementTree as et
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -183,10 +184,17 @@ def search_abstracts(gene: str,
         pmid2abstract = _pmid2abstract
     found = []
     gene = gene.lower()
-    for pmid in pmid2abstract.keys():
-        abstract = pmid2abstract[pmid]
-        if gene in abstract:
-            found.append(pmid)
+    if isinstance(pmid2abstract, dict):
+        for pmid in pmid2abstract.keys():
+            abstract = pmid2abstract[pmid]
+            if gene in abstract:
+                found.append(pmid)
+    elif isinstance(pmid2abstract, np.ndarray):
+        for i in range(len(pmid2abstract)):
+            pmid = pmid2abstract[i][0]
+            abstract = pmid2abstract[i][1]
+            if gene in abstract:
+                found.append(pmid)
     return found
 
 
@@ -371,10 +379,11 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     # reduce the time for text match quite a lot.
     if _pmid2abstract is None:
         _pmid2abstract = load_pmid2abstract(need_lower_case=True)
+    pmid2abstract_array = convert_pmid2abtract_ndarray(_pmid2abstract)
     # Try to use multiple processes via ray
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
-    searching_actors = [AbstractSearcher.remote(_pmid2abstract) for _ in range(MAX_WORKER)]
+    searching_actors = [AbstractSearcher.remote(pmid2abstract_array) for _ in range(MAX_WORKER)]
     start = 0
     # For the final run
     # Use a little bit buffer for the total jobs
@@ -408,6 +417,15 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     pickle.dump(gene2pmids, file)
     for gene, pmids in gene2pmids.items():
         print("{}: {}".format(gene, len(pmids)))
+
+
+def convert_pmid2abtract_ndarray(pmid2abstract):
+    logger.info("Converting pmid2abstract to an array...")
+    data = pmid2abstract.items()
+    data_list = list(data)
+    rtn = np.array(data_list)
+    logger.info("Done converting.")
+    return rtn
 
 
 def log_mem(logger1 = logger):
@@ -469,6 +487,6 @@ class AbstractSearcher(object):
     def clean(self):
         self.gene2pmids.clear()
 
-
-if __name__ == '__main__':
-    embed_abstracts_via_ray()
+#
+# if __name__ == '__main__':
+#     embed_abstracts_via_ray()
