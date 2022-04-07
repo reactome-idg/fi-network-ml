@@ -74,5 +74,8 @@ def get_names(gene: str) -> dict:
     global _gene2names
     if _gene2names is None:
         _gene2names = load_gene2othernames()
+    # Some old names are found in the impact file, e.g. H3F3C
+    if gene not in _gene2names.keys():
+        return [gene] # Most likely this will lose quite a lot of pmid entries. @TODO: To be handled later on.
     return _gene2names[gene]
 

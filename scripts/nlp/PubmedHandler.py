@@ -1,5 +1,6 @@
 # This script is used to handle pubmed related processes, e.g. download, parse, etc. The code is heavily based
 # on this web post: https://www.toptal.com/python/beginners-guide-to-concurrency-and-parallelism-in-python
+import collections
 import concurrent.futures
 import gzip
 import logging
@@ -17,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
 from typing import List
 from urllib.request import urlopen
+from typing import Optional
 
 import psutil
 
@@ -167,39 +169,28 @@ def extract_abstract(file_name: str,
     return pmid2abstract
 
 
-def search_abstracts(gene: str,
-                     pmid2abstract: dict = None) -> dict:
+def search_abstracts(gene: str) -> dict:
     """
     Search for abstracts for a gene. This is a simple text match for words and should be improved in the future.
     :param gene:
     :param pmid2abstract:
     :return:
     """
-    if pmid2abstract is None:
-        global _pmid2abstract
-        # Make sure the lower case version of pubmed abstracts are used for this serach. This should
-        # reduce the time for text match quite a lot.
-        if _pmid2abstract is None:
-            _pmid2abstract = load_pmid2abstract(need_lower_case=True)
-        pmid2abstract = _pmid2abstract
+    global _pmid2abstract
+    # Make sure the lower case version of pubmed abstracts are used for this serach. This should
+    # reduce the time for text match quite a lot.
+    if _pmid2abstract is None:
+        _pmid2abstract = load_pmid2abstract(need_lower_case=True)
     found = []
     gene = gene.lower()
-    if isinstance(pmid2abstract, dict):
-        for pmid in pmid2abstract.keys():
-            abstract = pmid2abstract[pmid]
-            if gene in abstract:
-                found.append(pmid)
-    elif isinstance(pmid2abstract, np.ndarray):
-        for i in range(len(pmid2abstract)):
-            pmid = pmid2abstract[i][0]
-            abstract = pmid2abstract[i][1]
-            if gene in abstract:
-                found.append(pmid)
+    for pmid in _pmid2abstract.keys():
+        abstract = _pmid2abstract[pmid]
+        if gene in abstract:
+            found.append(pmid)
     return found
 
 
-def search_abstracts_via_all_names(gene: str,
-                                   pmid2abstract: dict = None) -> dict:
+def search_abstracts_via_all_names(gene: str) -> dict:
     """
     Search pubmed abstracts for a gene.
     :param gene:
@@ -209,7 +200,7 @@ def search_abstracts_via_all_names(gene: str,
     names = uph.get_names(gene)
     pmids = set()
     for name in names:
-        pmids1 = search_abstracts(name, pmid2abstract)
+        pmids1 = search_abstracts(name)
         pmids.update(pmids1)
     return pmids
 
@@ -324,14 +315,27 @@ def embed_abstracts_via_ray():
     Embedding all pubmed abstracts
     :return:
     """
-    pmid2abstract = load_pmid2abstract()
-    pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
-    log_mem()
-    time0 = time.time()
     # Try to use multiple processes via ray
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
     embedding_actors = [AbstractEmbedder.remote() for _ in range(MAX_WORKER)]
+    cache_file_name = OUT_DIR + "/pmid2embedding_cache.pkl"
+    save_file_name = OUT_DIR + "/pmid2embedding.pkl"
+    process_abstracts_via_ray(embedding_actors, cache_file_name, save_file_name)
+
+
+def process_abstracts_via_ray(ray_actors: list,
+                              lower_abstract: bool = False,
+                              cache_file_name: str = None,
+                              save_file_name: str = None) -> Optional[dict]:
+    """
+    Process abstracts via a list of ray workers
+    :return:
+    """
+    pmid2abstract = load_pmid2abstract(need_lower_case=lower_abstract)
+    pmid2abstract = sample_pmid2abstract(pmid2abstract, 100)
+    log_mem()
+    time0 = time.time()
     pmids = list(pmid2abstract.keys())
     start = 0
     # For the final run
@@ -339,33 +343,36 @@ def embed_abstracts_via_ray():
     # step = 1000 * MAX_WORKER
     step = 200
     end = start + step
-    pmid2embedding = {}
-    cache_file_name = OUT_DIR + "/pmid2embedding_cache.pkl"
+    pmid2result = {}
     while start < len(pmid2abstract):
         pmids_sub = pmids[start:end]
         counter = 0
         for pmid in pmids_sub:
             abstract = pmid2abstract[pmid]
-            embedding_actors[counter % MAX_WORKER].embed.remote(pmid, abstract)
+            ray_actors[counter % len(ray_actors)].process.remote(pmid, abstract)
             counter += 1
         time1 = time.time()
-        logger.info("Starting embedding...")
-        for embedding_actor in embedding_actors:
-            pmid2embedding.update(ray.get(embedding_actor.get_pmid2embedding.remote()))
-            embedding_actor.clean.remote()
+        logger.info("Starting processing...")
+        for ray_actor in ray_actors:
+            pmid2result.update(ray.get(ray_actor.get_pmid2result.remote()))
+            ray_actor.clean.remote()
         time2 = time.time()
         logger.info("Done merging for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
-        cache_obj(pmid2embedding, cache_file_name)
+        if cache_file_name:
+            cache_obj(pmid2result, cache_file_name)
         start = end
         end += step
         if end > len(pmid2abstract):
             end = len(pmid2abstract)
     time3 = time.time()
     logger.info("Total time: {}.".format(time3 - time0))
-    logger.info("Total embedding: {}.".format(len(pmid2embedding)))
+    logger.info("Total embedding: {}.".format(len(pmid2result)))
     log_mem()
-    file = open(OUT_DIR + "/pmid2embedding.pkl", "wb")
-    pickle.dump(pmid2embedding, file)
+    if save_file_name:
+        file = open(save_file_name, "wb")
+        pickle.dump(pmid2result, file)
+    else:
+        return pmid2result
 
 
 def search_abstracts_for_all_via_ray(genes: list) -> dict:
@@ -373,59 +380,26 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     Search abstracts for a list of genes via ray
     :return:
     """
+    genes = random.sample(genes.tolist(), 100)
+    # genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
     logger.info("Total genes for searching: {}.".format(len(genes)))
-    global _pmid2abstract
-    # Make sure the lower case version of pubmed abstracts are used for this serach. This should
-    # reduce the time for text match quite a lot.
-    if _pmid2abstract is None:
-        _pmid2abstract = load_pmid2abstract(need_lower_case=True)
-    pmid2abstract_array = convert_pmid2abtract_ndarray(_pmid2abstract)
-    # Try to use multiple processes via ray
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
-    searching_actors = [AbstractSearcher.remote(pmid2abstract_array) for _ in range(MAX_WORKER)]
-    start = 0
-    # For the final run
-    # Use a little bit buffer for the total jobs
-    # step = 1000 * MAX_WORKER
-    step = 200
-    end = start + step
-    gene2pmids = {}
-    time0 = time.time()
-    while start < len(genes):
-        genes_sub = genes[start:end]
-        counter = 0
-        for gene in genes_sub:
-            searching_actors[counter % MAX_WORKER].search.remote(gene)
-            counter += 1
-        time1 = time.time()
-        logger.info("Starting searching...")
-        for searching_actor in searching_actors:
-            gene2pmids.update(ray.get(searching_actor.get_gene2pmids.remote()))
-            searching_actor.clean.remote()
-        time2 = time.time()
-        logger.info("Done searching for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
-        start = end
-        end += step
-        if end > len(genes):
-            end = len(genes)
-    time3 = time.time()
-    logger.info("Total time: {}.".format(time3 - time0))
-    logger.info("Total embedding: {}.".format(len(gene2pmids)))
-    log_mem()
-    file = open(OUT_DIR + "/gene2pmids.pkl", "wb")
+    searching_actors = [AbstractSearcher.remote(genes) for _ in range(MAX_WORKER)]
+    cache_file_name = OUT_DIR + "/pmid2genes_cache.pkl"
+    pmid2genes = process_abstracts_via_ray(searching_actors,
+                                           True,
+                                           cache_file_name,
+                                           save_file_name = None)
+    # Switch to gene2pmids
+    gene2pmids = collections.defaultdict(list)
+    for pmid, genes in pmid2genes.items():
+        for gene in genes:
+            gene2pmids[gene].append(pmid)
+    print(gene2pmids)
+    save_file_name = OUT_DIR + "/pmid2genes.pkl"
+    file = open(save_file_name, 'wb')
     pickle.dump(gene2pmids, file)
-    for gene, pmids in gene2pmids.items():
-        print("{}: {}".format(gene, len(pmids)))
-
-
-def convert_pmid2abtract_ndarray(pmid2abstract):
-    logger.info("Converting pmid2abstract to an array...")
-    data = pmid2abstract.items()
-    data_list = list(data)
-    rtn = np.array(data_list)
-    logger.info("Done converting.")
-    return rtn
 
 
 def log_mem(logger1 = logger):
@@ -455,13 +429,13 @@ class AbstractEmbedder(object):
         # Apparently logging cannot work in at ray. Using print.
         print("Initialized AbstractEmbedder: {}".format(self))
 
-    def embed(self, pmid, abstract):
+    def process(self, pmid, abstract):
         self.pmid2embedding[pmid] = embedder.sentence_embed(abstract,
                                                             self.sentence_transfomer)
         if len(self.pmid2embedding) % 25 == 0:
             print("{}: {}.".format(self, len(self.pmid2embedding)))
 
-    def get_pmid2embedding(self):
+    def get_pmid2result(self):
         return self.pmid2embedding
 
     def clean(self):
@@ -470,23 +444,30 @@ class AbstractEmbedder(object):
 
 @ray.remote
 class AbstractSearcher(object):
-    def __init__(self, pmid2abstract):
-        self.pmid2abstract = pmid2abstract
-        self.gene2pmids = {}
+    def __init__(self, all_genes):
+        self.all_genes = all_genes
+        self.pmid2genes = {}
         print("Initialized AbstractSearcher: {}.".format(self))
 
-    def search(self, gene):
-        pmids = search_abstracts_via_all_names(gene, self.pmid2abstract)
-        if len(pmids) == 0:
-            return # Don't do anything if nothing there
-        self.gene2pmids[gene] = pmids
+    def process(self, pmid, abstract):
+        found_genes = []
+        for gene in self.all_genes:
+            all_names = uph.get_names(gene)
+            for name in all_names:
+                if name.lower() in abstract:
+                    found_genes.append(gene)
+                    break
+        if len(found_genes) == 0:
+            return
+        self.pmid2genes[pmid] = found_genes
 
-    def get_gene2pmids(self):
-        return self.gene2pmids
+    def get_pmid2result(self):
+        print("return from {}: {}.".format(self, len(self.pmid2genes)))
+        return self.pmid2genes
 
     def clean(self):
-        self.gene2pmids.clear()
+        self.pmid2genes.clear()
 
-#
-# if __name__ == '__main__':
-#     embed_abstracts_via_ray()
+
+if __name__ == '__main__':
+    embed_abstracts_via_ray()
