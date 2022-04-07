@@ -258,6 +258,24 @@ def calculate_cor_impact_cosine_via_sentence_transformer(gene: str,  # Three gen
     return pathway2embedding
 
 
+def search_abstracts_for_all_genes():
+    """
+    Perform batch search for all analyzed genes.
+    :return:
+    """
+    logger.info("Load impact scores...")
+    # Load impact result as a DataFrame
+    impact_df = pd.read_csv(IMPACT_ANALYSIS_FILE, sep="\t")
+    logger.info("The shape of impact_df: {}.".format(impact_df.shape))
+    # Apparently there is a null gene included in the analysis. Need to exclude rows having for this!
+    impact_df = impact_df.dropna()
+    logger.info("Cleaned impact_df: {}.".format(impact_df.shape))
+    genes = impact_df['Gene'].unique()
+    logger.info("Total genes: {}.".format(len(genes)))
+    genes = random.sample(genes.tolist(), 10)
+    ph.search_abstracts_for_all_via_ray(genes)
+
+
 def batch_analyze_cor_impact_cosine():
     """
     Perform batch analysis using all downloaded pubmed abstracts.
@@ -473,7 +491,8 @@ def sort_pubmed_abstracts_on_similarity():
 
 
 if __name__ == '__main__':
-    results_dfs = batch_analyze_cor_impact_cosine()
-    for impact_type, results_df in results_dfs.items():
-        print("{}:\n{}".format(impact_type, results_df))
+    search_abstracts_for_all_genes()
+    # results_dfs = batch_analyze_cor_impact_cosine()
+    # for impact_type, results_df in results_dfs.items():
+    #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())

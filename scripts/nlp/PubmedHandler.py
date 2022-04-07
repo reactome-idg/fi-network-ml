@@ -8,6 +8,8 @@ import pickle
 import random
 import re
 import time
+from builtins import set
+
 import ray
 import xml.etree.ElementTree as et
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -193,10 +195,10 @@ def search_abstracts_via_all_names(gene: str) -> dict:
     """
     # Collect all names first
     names = uph.get_names(gene)
-    pmids = []
+    pmids = set()
     for name in names:
         pmids1 = search_abstracts(name)
-        pmids.extend(pmids1)
+        pmids.update(pmids1)
     return pmids
 
 
@@ -354,9 +356,52 @@ def embed_abstracts_via_ray():
     pickle.dump(pmid2embedding, file)
 
 
-def log_mem(logger = logger):
+def search_abstracts_for_all_via_ray(genes: list) -> dict:
+    """
+    Search abstracts for a list of genes via ray
+    :return:
+    """
+    logger.info("Total genes for searching: {}.".format(len(genes)))
+    # Try to use multiple processes via ray
+    ray.init(num_cpus=MAX_WORKER)
+    logger.info("Initializing {} ray actors...".format(MAX_WORKER))
+    searching_actors = [AbstractSearcher.remote() for _ in range(MAX_WORKER)]
+    start = 0
+    # For the final run
+    # Use a little bit buffer for the total jobs
+    # step = 1000 * MAX_WORKER
+    step = 200
+    end = start + step
+    gene2pmids = {}
+    time0 = time.time()
+    while start < len(genes):
+        genes_sub = genes[start:end]
+        counter = 0
+        for gene in genes_sub:
+            searching_actors[counter % MAX_WORKER].search.remote(gene)
+            counter += 1
+        time1 = time.time()
+        logger.info("Starting searching...")
+        for searching_actor in searching_actors:
+            gene2pmids.update(ray.get(searching_actor.get_gene2pmids.remote()))
+            searching_actor.clean.remote()
+        time2 = time.time()
+        logger.info("Done searching for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
+        start = end
+        end += step
+        if end > len(genes):
+            end = len(genes)
+    time3 = time.time()
+    logger.info("Total time: {}.".format(time3 - time0))
+    logger.info("Total embedding: {}.".format(len(gene2pmids)))
+    log_mem()
+    file = open(OUT_DIR + "/gene2pmids.pkl", "wb")
+    pickle.dump(gene2pmids, file)
+
+
+def log_mem(logger1 = logger):
     mem = psutil.Process().memory_info().rss / (1024 * 1024)
-    logger.info("Memory used: {} MB.".format(mem))
+    logger1.info("Memory used: {} MB.".format(mem))
 
 
 def cache_obj(obj, file):
@@ -396,17 +441,14 @@ class AbstractEmbedder(object):
 
 @ray.remote
 class AbstractSearcher(object):
-    def __init__(self, gene2names, pmid2abstract):
-        self.gene2names = gene2names
+    def __init__(self):
         self.gene2pmids = {}
         print("Initialized AbstractSearcher: {}.".format(self))
 
     def search(self, gene):
-        names = self.gene2names[gene]
-        pmids = []
-        for name in names:
-            found = search_abstract(name)
-            pmids.extend(found)
+        pmids = search_abstracts_via_all_names(gene)
+        if len(pmids) == 0:
+            return # Don't do anything if nothing there
         self.gene2pmids[gene] = pmids
 
     def get_gene2pmids(self):
