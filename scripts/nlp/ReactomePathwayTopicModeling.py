@@ -270,13 +270,6 @@ def batch_analyze_cor_impact_cosine():
     pmid2emebdding = ph.load_pmid2embedding()
     logger.info("Size of abstract2embedding: {}.".format(len(pmid2emebdding)))
     ph.log_mem(logger)
-    # Need abstracts for search
-    logger.info("Load abstracts...")
-    pmid2abstract = ph.load_pmid2abstract()
-    # Cache the loaded abstracts to avoid re-loading
-    ph._pmid2abstract = pmid2abstract
-    logger.info("Size of pmid2abstract: {}.".format(len(pmid2abstract)))
-    ph.log_mem(logger)
     logger.info("Load impact scores...")
     # Load impact result as a DataFrame
     impact_df = pd.read_csv(IMPACT_ANALYSIS_FILE, sep="\t")
@@ -295,7 +288,7 @@ def batch_analyze_cor_impact_cosine():
     time0 = time.time()
     # For local test
     genes = random.sample(genes.tolist(), 100)
-    # genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+    genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
     logger.info("Genes subject to analysis: {}.".format(len(genes)))
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
@@ -447,11 +440,11 @@ def search_pubmed_abstracts(gene: str) -> dict:
     """
     # Collect all names first
     names = uph.get_names(gene)
-    pmid2abstracts = {}
+    pmids = []
     for name in names:
         pmid2abstracts_1 = ph.search_abstract(name)
-        pmid2abstracts.update(pmid2abstracts_1)
-    return pmid2abstracts
+        pmids.append(pmid2abstracts_1)
+    return pmids
 
 
 def sort_pubmed_abstracts_on_similarity():

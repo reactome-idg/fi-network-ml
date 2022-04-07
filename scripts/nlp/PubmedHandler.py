@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
 from typing import List
 from urllib.request import urlopen
+from collections import defaultdict
 
 import psutil
 
@@ -115,6 +116,7 @@ def load_pmid2abstract(file_name: str = OUT_DIR + "/pmid2abstract.pkl",
     pmid2abstract = pickle.load(file)
     file.close()
     logger.info("Total abstracts loaded: {}.".format(len(pmid2abstract)))
+    log_mem(logger)
     if need_lower_case:
         for pmid, abstract in pmid2abstract.items():
             pmid2abstract[pmid] = abstract.lower()
@@ -170,14 +172,16 @@ def search_abstract(gene: str) -> dict:
     :return:
     """
     global _pmid2abstract
+    # Make sure the lower case version of pubmed abstracts are used for this serach. This should
+    # reduce the time for text match quite a lot.
     if _pmid2abstract is None:
         _pmid2abstract = load_pmid2abstract(need_lower_case=True)
-    found = {}
+    found = []
     gene = gene.lower()
     for pmid in _pmid2abstract.keys():
         abstract = _pmid2abstract[pmid]
         if gene in abstract:
-            found[pmid] = abstract
+            found.append(pmid)
     return found
 
 
@@ -374,6 +378,15 @@ class AbstractEmbedder(object):
     def clean(self):
         self.pmid2embedding.clear()
 
+@ray.remote
+class AbstractSearcher(object):
+    def __init__(self, gene2names, pmid2abstract):
+        self.gene2names = gene2names
+        self.gene2pmids = defaultdict(list)
+        print("Initialized AbstractSearcher: {}.".format(self))
+
+    def search(self, gene):
+        names = self.gene2names[gene]
 
 if __name__ == '__main__':
     embed_abstracts_via_ray()
