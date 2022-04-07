@@ -14,11 +14,11 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
 from typing import List
 from urllib.request import urlopen
-from collections import defaultdict
 
 import psutil
 
 import TextEmbedder as embedder
+import UniProtHandler as uph
 
 # A much more efficient parallel computing to avoid using buggy Python version
 # See this for more information: https://towardsdatascience.com/10x-faster-parallel-python-without-python-multiprocessing-e5017c93cce1
@@ -164,7 +164,7 @@ def extract_abstract(file_name: str,
     return pmid2abstract
 
 
-def search_abstract(gene: str) -> dict:
+def search_abstracts(gene: str) -> dict:
     """
     Search for abstracts for a gene. This is a simple text match for words and should be improved in the future.
     :param gene:
@@ -183,6 +183,21 @@ def search_abstract(gene: str) -> dict:
         if gene in abstract:
             found.append(pmid)
     return found
+
+
+def search_abstracts_via_all_names(gene: str) -> dict:
+    """
+    Search pubmed abstracts for a gene.
+    :param gene:
+    :return:
+    """
+    # Collect all names first
+    names = uph.get_names(gene)
+    pmids = []
+    for name in names:
+        pmids1 = search_abstracts(name)
+        pmids.extend(pmids1)
+    return pmids
 
 
 def load_pubmed_abstract(dir_name: str,
@@ -378,15 +393,28 @@ class AbstractEmbedder(object):
     def clean(self):
         self.pmid2embedding.clear()
 
+
 @ray.remote
 class AbstractSearcher(object):
     def __init__(self, gene2names, pmid2abstract):
         self.gene2names = gene2names
-        self.gene2pmids = defaultdict(list)
+        self.gene2pmids = {}
         print("Initialized AbstractSearcher: {}.".format(self))
 
     def search(self, gene):
         names = self.gene2names[gene]
+        pmids = []
+        for name in names:
+            found = search_abstract(name)
+            pmids.extend(found)
+        self.gene2pmids[gene] = pmids
+
+    def get_gene2pmids(self):
+        return self.gene2pmids
+
+    def clean(self):
+        self.gene2pmids.clear()
+
 
 if __name__ == '__main__':
     embed_abstracts_via_ray()

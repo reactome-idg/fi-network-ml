@@ -293,11 +293,10 @@ def batch_analyze_cor_impact_cosine():
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
         logger.info("Searching pubmed abstracts")
-        gene_abstracts = search_pubmed_abstracts(gene)
-        logger.info("Found pmids: {}.".format(len(gene_abstracts)))
-        if len(gene_abstracts) == 0:
+        gene_pmids = ph.search_abstracts_via_all_names(gene)
+        logger.info("Found pmids: {}.".format(len(gene_pmids)))
+        if len(gene_pmids) == 0:
             continue
-        gene_pmids = gene_abstracts.keys()
         gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
         if len(gene_pmid2embedding) == 0:
             logger.info("No abstract emebedding for {}.".format(gene))
@@ -430,21 +429,6 @@ def run_luna_nlp_cor_analysis(dir_name=DIR + "../luna_nlp_results"):
         print("Working on {}...".format(gene))
         plot_luna_nlp_cor_analysis(gene)
         print('Done\n')
-
-
-def search_pubmed_abstracts(gene: str) -> dict:
-    """
-    Search pubmed abstracts for a gene.
-    :param gene:
-    :return:
-    """
-    # Collect all names first
-    names = uph.get_names(gene)
-    pmids = []
-    for name in names:
-        pmid2abstracts_1 = ph.search_abstract(name)
-        pmids.append(pmid2abstracts_1)
-    return pmids
 
 
 def sort_pubmed_abstracts_on_similarity():
