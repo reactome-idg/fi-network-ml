@@ -387,7 +387,7 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
     searching_actors = [AbstractSearcher.remote(genes) for _ in range(MAX_WORKER)]
-    cache_file_name = OUT_DIR + "/pmid2genes_cache.pkl"
+    cache_file_name = OUT_DIR + "/../nlp_files/pmid2genes_cache.pkl"
     pmid2genes = process_abstracts_via_ray(searching_actors,
                                            True,
                                            cache_file_name=None,
@@ -398,7 +398,7 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
         for gene in genes:
             gene2pmids[gene].append(pmid)
     # print(gene2pmids)
-    save_file_name = OUT_DIR + "/pmid2genes.pkl"
+    save_file_name = OUT_DIR + "/../nlp_files/pmid2genes.pkl"
     file = open(save_file_name, 'wb')
     pickle.dump(gene2pmids, file)
 

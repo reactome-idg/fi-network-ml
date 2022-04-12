@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # DIR = '/ssd/d0/ml/nlp/'
 # At mac pro
 DIR = "../../results/impact_analysis/nlp_files/"
+TOP_PMID_NUMBER = 1000 # This is rather arbitray. Most for performance.
 # DIR = '/Volumes/ssd/results/reactome-idg/fi-network-ml/impact_analysis/nlp_files/'
 # PATHWAY_TEXT_FILE = DIR + "PathwayText_111921.txt"
 PATHWAY_TEXT_FILE = DIR + "PathwayText_120721.txt"
@@ -300,6 +301,13 @@ def batch_analyze_cor_impact_cosine():
     logger.info("Cleaned impact_df: {}.".format(impact_df.shape))
     genes = impact_df['Gene'].unique()
     logger.info("Total genes: {}.".format(len(genes)))
+    # Do a filtering for easy handling
+    which = np.isin(genes, list(gene2pmids.keys()))
+    genes = genes[which]
+    logger.info("Total genes in gene2pmids: {}.".format(len(genes)))
+    # Used to select top genes
+    pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
+    logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
     # Keep all results in this DataFrame
     cols = ["Gene", "Pearson", "Peason_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways"]
     # Three types of impact scores
@@ -319,6 +327,11 @@ def batch_analyze_cor_impact_cosine():
             logger.info("Cannot find pmids for {}.".format(gene))
             continue
         logger.info("Found pmids: {}.".format(len(gene_pmids)))
+        # Pick top pmids if there are too many pmids
+        if len(gene_pmids) > TOP_PMID_NUMBER:
+            which = np.isin(pmid_reactome_sim_df.index, gene_pmids)
+            gene_pmids = pmid_reactome_sim_df.index[which].to_list[:TOP_PMID_NUMBER]
+            logger.info("Selected top {} PMIDS.".format(TOP_PMID_NUMBER))
         gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
         if len(gene_pmid2embedding) == 0:
             logger.info("No abstract emebedding for {}.".format(gene))
@@ -347,7 +360,13 @@ def batch_analyze_cor_impact_cosine():
     time1 = time.time()
     logger.info("Total time used: {} seconds.".format(time1 - time0))
     ph.log_mem(logger)
-    return {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in range(len(impact_score_types))}
+    type2df = {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in range(len(impact_score_types))}
+    # Save the files
+    file_name = DIR + "{}_impact_pubmed_score_cor.txt"
+    for type, df in type2df.items():
+        type_file_name = file_name.format(type)
+        df.to_csv(type_file_name, sep = '\t', index=False)
+    return type2df
 
 
 def _prepare_sent_cor_analysis(gene: str,
@@ -492,6 +511,14 @@ def sort_pubmed_abstracts_on_similarity():
     time4 = time.time()
     logger.info("Time for saving the dataframe: {}.".format(time4 - time3))
     return df
+
+
+def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_similarity_df.pkl") -> pd.DataFrame:
+    file = open(file_name, 'rb')
+    pd = pickle.load(file)
+    # Want to use pmid as index for performance
+    pd.set_index('PMID', inplace = False)
+    return pd
 
 
 if __name__ == '__main__':
