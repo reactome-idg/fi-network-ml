@@ -333,7 +333,7 @@ def process_abstracts_via_ray(ray_actors: list,
     :return:
     """
     pmid2abstract = load_pmid2abstract(need_lower_case=lower_abstract)
-    pmid2abstract = sample_pmid2abstract(pmid2abstract, 100)
+    # pmid2abstract = sample_pmid2abstract(pmid2abstract, 1000)
     log_mem()
     time0 = time.time()
     pmids = list(pmid2abstract.keys())
@@ -358,7 +358,8 @@ def process_abstracts_via_ray(ray_actors: list,
             ray_actor.clean.remote()
         time2 = time.time()
         logger.info("Done merging for {} - {} : {} seconds.".format(start, end, (time2 - time1)))
-        if cache_file_name:
+        # This is usually quite a slow step. Just do two caches.
+        if cache_file_name and (len(pmid2result) == len(pmid2abstract)/3 or len(pmid2result) == len(pmid2abstract)/3*2):
             cache_obj(pmid2result, cache_file_name)
         start = end
         end += step
@@ -366,7 +367,7 @@ def process_abstracts_via_ray(ray_actors: list,
             end = len(pmid2abstract)
     time3 = time.time()
     logger.info("Total time: {}.".format(time3 - time0))
-    logger.info("Total embedding: {}.".format(len(pmid2result)))
+    logger.info("Total results: {}.".format(len(pmid2result)))
     log_mem()
     if save_file_name:
         file = open(save_file_name, "wb")
@@ -380,7 +381,7 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     Search abstracts for a list of genes via ray
     :return:
     """
-    genes = random.sample(genes.tolist(), 100)
+    genes = random.sample(genes.tolist(), 5000)
     # genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
     logger.info("Total genes for searching: {}.".format(len(genes)))
     ray.init(num_cpus=MAX_WORKER)
@@ -389,17 +390,22 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     cache_file_name = OUT_DIR + "/pmid2genes_cache.pkl"
     pmid2genes = process_abstracts_via_ray(searching_actors,
                                            True,
-                                           cache_file_name,
-                                           save_file_name = None)
+                                           cache_file_name=None,
+                                           save_file_name=None)
     # Switch to gene2pmids
     gene2pmids = collections.defaultdict(list)
     for pmid, genes in pmid2genes.items():
         for gene in genes:
             gene2pmids[gene].append(pmid)
-    print(gene2pmids)
+    # print(gene2pmids)
     save_file_name = OUT_DIR + "/pmid2genes.pkl"
     file = open(save_file_name, 'wb')
     pickle.dump(gene2pmids, file)
+
+
+def load_gene2pmids(file_name: str = OUT_DIR + "/pmid2genes.pkl") -> dict:
+    file = open(file_name, 'rb')
+    return pickle.load(file)
 
 
 def log_mem(logger1 = logger):
@@ -462,7 +468,7 @@ class AbstractSearcher(object):
         self.pmid2genes[pmid] = found_genes
 
     def get_pmid2result(self):
-        print("return from {}: {}.".format(self, len(self.pmid2genes)))
+        # print("return from {}: {}.".format(self, len(self.pmid2genes)))
         return self.pmid2genes
 
     def clean(self):
