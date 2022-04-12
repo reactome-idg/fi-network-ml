@@ -287,6 +287,10 @@ def batch_analyze_cor_impact_cosine():
     pmid2emebdding = ph.load_pmid2embedding()
     logger.info("Size of abstract2embedding: {}.".format(len(pmid2emebdding)))
     ph.log_mem(logger)
+    logger.info("Loading genes2pmids...")
+    gene2pmids = ph.load_gene2pmids()
+    logger.info("Size of gene2pmids: {}.".format(len(gene2pmids)))
+    ph.log_mem(logger)
     logger.info("Load impact scores...")
     # Load impact result as a DataFrame
     impact_df = pd.read_csv(IMPACT_ANALYSIS_FILE, sep="\t")
@@ -310,10 +314,11 @@ def batch_analyze_cor_impact_cosine():
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
         logger.info("Searching pubmed abstracts")
-        gene_pmids = ph.search_abstracts_via_all_names(gene)
-        logger.info("Found pmids: {}.".format(len(gene_pmids)))
-        if len(gene_pmids) == 0:
+        gene_pmids = gene2pmids[gene]
+        if gene_pmids is None or len(gene_pmids) == 0:
+            logger.info("Cannot find pmids for {}.".format(gene))
             continue
+        logger.info("Found pmids: {}.".format(len(gene_pmids)))
         gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
         if len(gene_pmid2embedding) == 0:
             logger.info("No abstract emebedding for {}.".format(gene))
@@ -490,8 +495,8 @@ def sort_pubmed_abstracts_on_similarity():
 
 
 if __name__ == '__main__':
-    search_abstracts_for_all_genes()
-    # results_dfs = batch_analyze_cor_impact_cosine()
-    # for impact_type, results_df in results_dfs.items():
-    #     print("{}:\n{}".format(impact_type, results_df))
+    # search_abstracts_for_all_genes()
+    results_dfs = batch_analyze_cor_impact_cosine()
+    for impact_type, results_df in results_dfs.items():
+        print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
