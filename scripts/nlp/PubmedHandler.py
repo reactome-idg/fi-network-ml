@@ -403,7 +403,7 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     pickle.dump(gene2pmids, file)
 
 
-def load_gene2pmids(file_name: str = OUT_DIR + "/pmid2genes.pkl") -> dict:
+def load_gene2pmids(file_name: str = OUT_DIR + "/../nlp_files/pmid2genes.pkl") -> dict:
     file = open(file_name, 'rb')
     return pickle.load(file)
 

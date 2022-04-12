@@ -307,6 +307,8 @@ def batch_analyze_cor_impact_cosine():
     logger.info("Total genes in gene2pmids: {}.".format(len(genes)))
     # Used to select top genes
     pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
+    # Only need this sorted index
+    pmid_reactome_sim_df_index = pmid_reactome_sim_df.index
     logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
     # Keep all results in this DataFrame
     cols = ["Gene", "Pearson", "Peason_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways"]
@@ -329,8 +331,10 @@ def batch_analyze_cor_impact_cosine():
         logger.info("Found pmids: {}.".format(len(gene_pmids)))
         # Pick top pmids if there are too many pmids
         if len(gene_pmids) > TOP_PMID_NUMBER:
-            which = np.isin(pmid_reactome_sim_df.index, gene_pmids)
-            gene_pmids = pmid_reactome_sim_df.index[which].to_list[:TOP_PMID_NUMBER]
+            # Don't use np.isin. Panda's index isin should be much faster
+            # which = np.isin(pmid_reactome_sim_df.index, gene_pmids)
+            which = pmid_reactome_sim_df_index.isin(gene_pmids)
+            gene_pmids = pmid_reactome_sim_df_index[which].to_list()[:TOP_PMID_NUMBER]
             logger.info("Selected top {} PMIDS.".format(TOP_PMID_NUMBER))
         gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
         if len(gene_pmid2embedding) == 0:
@@ -517,7 +521,7 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
     file = open(file_name, 'rb')
     pd = pickle.load(file)
     # Want to use pmid as index for performance
-    pd.set_index('PMID', inplace = False)
+    pd.set_index('PMID', inplace=True)
     return pd
 
 
