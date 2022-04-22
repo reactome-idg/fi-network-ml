@@ -5,6 +5,7 @@ import pickle
 import random
 import time
 from typing import Tuple, List, Union, Dict
+from datetime import date
 
 import bertopic
 import numpy as np
@@ -276,7 +277,7 @@ def search_abstracts_for_all_genes():
     ph.search_abstracts_for_all_via_ray(genes)
 
 
-def batch_analyze_cor_impact_cosine():
+def batch_analyze_cor_impact_cosine(file_postifx: str=''):
     """
     Perform batch analysis using all downloaded pubmed abstracts.
     :return:
@@ -312,16 +313,19 @@ def batch_analyze_cor_impact_cosine():
     # This is for real data
     logger.info("Starting the real data...")
     _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df,
-                                     False, pathway2embedding, pmid2emebdding)
+                                     False, pathway2embedding,
+                                     pmid2emebdding,
+                                     file_postifx)
     logger.info("Done the real data. Starting the permuated data...")
     # This is for permutation
     _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
-                                     pmid2emebdding)
+                                     pmid2emebdding,
+                                     file_postifx)
     logger.info("Done permutated data.")
 
 
 def _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, is_for_permuation, pathway2embedding,
-                                     pmid2emebdding):
+                                     pmid2emebdding, file_postfix):
     # Used to select top pmids
     pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
     # Only need this sorted index
@@ -391,7 +395,7 @@ def _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, is_for_permua
     type2df = {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in
                range(len(impact_score_types))}
     # Save the files
-    file_name = DIR + "{}_impact_pubmed_score_cor" + ("_random" if is_for_permuation else "") + ".txt"
+    file_name = DIR + "{}_impact_pubmed_score_cor" + ("_random" if is_for_permuation else "") + file_postfix + ".txt"
     for df_type, df in type2df.items():
         type_file_name = file_name.format(df_type)
         df.to_csv(type_file_name, sep='\t', index=False)
@@ -552,7 +556,9 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 if __name__ == '__main__':
     # search_abstracts_for_all_genes()
-    batch_analyze_cor_impact_cosine()
+    today = date.today()
+    i = 0
+    batch_analyze_cor_impact_cosine("_{}_{}".format(today.strftime("%m%d%Y"), i))
     # for impact_type, results_df in results_dfs.items():
     #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
