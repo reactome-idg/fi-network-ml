@@ -277,7 +277,8 @@ def search_abstracts_for_all_genes():
     ph.search_abstracts_for_all_via_ray(genes)
 
 
-def batch_analyze_cor_impact_cosine(file_postifx: str=''):
+def batch_analyze_cor_impact_cosine(check_genes: int = 2,
+                                    runs: int = 1):
     """
     Perform batch analysis using all downloaded pubmed abstracts.
     :return:
@@ -306,31 +307,44 @@ def batch_analyze_cor_impact_cosine(file_postifx: str=''):
     which = np.isin(genes, list(gene2pmids.keys()))
     genes = genes[which]
     logger.info("Total genes in gene2pmids: {}.".format(len(genes)))
-    # For local test
-    genes = random.sample(genes.tolist(), 100)
-    genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
-    logger.info("Genes subject to analysis: {}.".format(len(genes)))
-    # This is for real data
-    logger.info("Starting the real data...")
-    _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df,
-                                     False, pathway2embedding,
-                                     pmid2emebdding,
-                                     file_postifx)
-    logger.info("Done the real data. Starting the permuated data...")
-    # This is for permutation
-    _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
-                                     pmid2emebdding,
-                                     file_postifx)
-    logger.info("Done permutated data.")
+    # For sampling
+    master_genes = genes.tolist()
+    today = date.today()
+    for i in range(runs):
+        file_postifx = "_{}_{}".format(today.strftime("%m%d%Y"), i)
+        logger.info("Working on " + file_postifx)
+        # For local test
+        genes = random.sample(master_genes, check_genes)
+        # Make sure these genes are in the test genes list
+        seed_genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+        for seed_gene in seed_genes:
+            if seed_gene not in genes:
+                logger.info("Append seed gene: {}.".format(seed_gene))
+                genes.append(seed_gene)
+        logger.info("Genes subject to analysis: {}.".format(len(genes)))
+        # Used to select top pmids
+        pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
+        # Only need this sorted index
+        pmid_reactome_sim_df_index = pmid_reactome_sim_df.index
+        logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
+        # This is for real data
+        logger.info("Starting the real data...")
+        _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df,
+                                         False, pathway2embedding,
+                                         pmid2emebdding,
+                                         pmid_reactome_sim_df_index,
+                                         file_postifx)
+        logger.info("Done the real data. Starting the permuated data...")
+        # This is for permutation
+        _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
+                                         pmid2emebdding, pmid_reactome_sim_df_index,
+                                         file_postifx)
+        logger.info("Done permutated data.")
+        logger.info("Done " + file_postifx)
 
 
 def _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, is_for_permuation, pathway2embedding,
-                                     pmid2emebdding, file_postfix):
-    # Used to select top pmids
-    pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
-    # Only need this sorted index
-    pmid_reactome_sim_df_index = pmid_reactome_sim_df.index
-    logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
+                                     pmid2emebdding, pmid_reactome_sim_df_index, file_postfix):
     if is_for_permuation:
         pmid_list = list(pmid2emebdding.keys())
     # Keep all results in this DataFrame
@@ -351,7 +365,8 @@ def _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, is_for_permua
         total_pmids = len(gene_pmids)
         if is_for_permuation:  # Permutation test
             needed_pmids = total_pmids if total_pmids < TOP_PMID_NUMBER else TOP_PMID_NUMBER
-            gene_pmids = random.sample(pmid_list, needed_pmids)
+            if len(pmid_list) > needed_pmids:
+                gene_pmids = random.sample(pmid_list, needed_pmids)
             logger.info("Randomly selected {} PMIDs.".format(needed_pmids))
         # Pick top pmids if there are too many pmids
         elif total_pmids > TOP_PMID_NUMBER:
@@ -556,9 +571,7 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 if __name__ == '__main__':
     # search_abstracts_for_all_genes()
-    today = date.today()
-    i = 0
-    batch_analyze_cor_impact_cosine("_{}_{}".format(today.strftime("%m%d%Y"), i))
+    batch_analyze_cor_impact_cosine(10, 2)
     # for impact_type, results_df in results_dfs.items():
     #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
