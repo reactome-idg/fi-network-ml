@@ -204,6 +204,61 @@ def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
     return pmid2similarity
 
 
+def plot_cor_batch_results(file_name: str,
+                           col_index: int = 1,
+                           color_col_name: str = 'Tdark',
+                           need_violin_plot: bool = False):
+    """
+    This methos is used to analyze the results from batch correlation analysis between impact scores
+    and pubmed abstract similarity scores.
+    :param file_name:
+    :param out_file_name:
+    :param col_index:
+    :return:
+    """
+    cor_df = pd.read_csv(file_name, sep='\t')
+    cor_df.set_index('Gene', inplace=True, drop=False)
+    cor_df['-Log10(p-value)'] = cor_df.iloc[:, col_index + 1].map(lambda x : -math.log10(x))
+    # For gene dev levels
+    gene_dev_df_file = '../../src/main/resources/UniProtGeneDevLevelsTypes_100721.txt'
+    gene_dev_df = pd.read_csv(gene_dev_df_file, sep='\t')
+    # There are some dupicated gene names for the same UniProt accessions
+    gene_dev_df.drop_duplicates('GeneName', inplace=True)
+    gene_dev_df.set_index('GeneName', inplace=True)
+    cor_df['DevLevel'] = gene_dev_df.loc[cor_df.index]['DevLevel']
+    cor_df['Tdark'] = cor_df['DevLevel'].map(lambda x : x == 'Tdark')
+    # Check if genes are annotated in Reactome
+    reactome_gene_file_name = '../../results/impact_analysis/ReactomeGenes_Ver_77.txt'
+    reactome_gene_file = open(reactome_gene_file_name, 'r')
+    reactome_genes = [line.strip() for line in reactome_gene_file.readlines()]
+    reactome_gene_file.close()
+    cor_df['Annotated'] = cor_df['Gene'].map(lambda g : g in reactome_genes)
+    # scatter between correlation and p-values
+    fig = px.scatter(cor_df,
+                     x=cor_df.columns[col_index],
+                     y='-Log10(p-value)',
+                     color=color_col_name,
+                     hover_data=['Gene', cor_df.columns[col_index], cor_df.columns[col_index + 1]])
+    fig.write_html(file_name + "." + color_col_name.lower() + ".scatter.html")
+    if need_violin_plot:
+        fig = px.violin(cor_df,
+                        y = 'Pearson',
+                        x='Annotated' if color_col_name == 'Tdark' else 'Tdark',
+                        color=color_col_name,
+                        box = True,
+                        points='all',
+                        hover_data=cor_df.columns)
+        fig.write_html(file_name + "." + color_col_name.lower() + ".violin.html")
+    return cor_df
+
+
+if __name__ == '__main__':
+    dir_name = '../../results/impact_analysis/nlp_files/'
+    file_name = dir_name + 'Average_Inhibition_impact_pubmed_score_cor.txt'
+    plot_cor_batch_results(file_name, need_violin_plot=True, color_col_name='Annotated')
+    plot_cor_batch_results(file_name, need_violin_plot=True, color_col_name='Tdark')
+
+
 @ray.remote
 class CosineSimilarityCalculator(object):
     def __init__(self, pathway2embedding):

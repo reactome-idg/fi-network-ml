@@ -276,7 +276,7 @@ def search_abstracts_for_all_genes():
     ph.search_abstracts_for_all_via_ray(genes)
 
 
-def batch_analyze_cor_impact_cosine():
+def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataFrame:
     """
     Perform batch analysis using all downloaded pubmed abstracts.
     :return:
@@ -287,6 +287,8 @@ def batch_analyze_cor_impact_cosine():
     logger.info("Loading abstract emebdding...")
     pmid2emebdding = ph.load_pmid2embedding()
     logger.info("Size of abstract2embedding: {}.".format(len(pmid2emebdding)))
+    if is_for_permuation:
+        pmid_list = list(pmid2emebdding.keys())
     ph.log_mem(logger)
     logger.info("Loading genes2pmids...")
     gene2pmids = ph.load_gene2pmids()
@@ -311,7 +313,7 @@ def batch_analyze_cor_impact_cosine():
     pmid_reactome_sim_df_index = pmid_reactome_sim_df.index
     logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
     # Keep all results in this DataFrame
-    cols = ["Gene", "Pearson", "Peason_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways"]
+    cols = ["Gene", "Pearson", "Pearson_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways", "Total_Abstracts"]
     # Three types of impact scores
     impact_score_types = ["FDR", "Average_Activation", "Average_Inhibition"]
     impact_rows = [[], [], []]
@@ -329,12 +331,19 @@ def batch_analyze_cor_impact_cosine():
             logger.info("Cannot find pmids for {}.".format(gene))
             continue
         logger.info("Found pmids: {}.".format(len(gene_pmids)))
+        total_pmids = len(gene_pmids)
+        if is_for_permuation: # Permutation test
+            needed_pmids = total_pmids if total_pmids < TOP_PMID_NUMBER else TOP_PMID_NUMBER
+            gene_pmids = random.sample(pmid_list, needed_pmids)
+            logger.info("Randomly selected {} PMIDs.".format(needed_pmids))
         # Pick top pmids if there are too many pmids
-        if len(gene_pmids) > TOP_PMID_NUMBER:
+        elif total_pmids > TOP_PMID_NUMBER:
             # Don't use np.isin. Panda's index isin should be much faster
             # which = np.isin(pmid_reactome_sim_df.index, gene_pmids)
             which = pmid_reactome_sim_df_index.isin(gene_pmids)
             gene_pmids = pmid_reactome_sim_df_index[which].to_list()[:TOP_PMID_NUMBER]
+            # Try random pmids
+            # gene_pmids = random.sample(gene_pmids, TOP_PMID_NUMBER)
             logger.info("Selected top {} PMIDS.".format(TOP_PMID_NUMBER))
         gene_pmid2embedding = {pmid: pmid2emebdding[pmid] for pmid in gene_pmids if pmid in pmid2emebdding.keys()}
         if len(gene_pmid2embedding) == 0:
@@ -343,6 +352,7 @@ def batch_analyze_cor_impact_cosine():
         gene_pathway2cosine = resultAnalyzer.calculate_cosine_similiarity(list(gene_pmid2embedding.values()),
                                                                           pathway2embedding)
         gene_impact_scores = impact_df.loc[impact_df['Gene'] == gene, ]
+        # Use this for loop since i is needed at the end
         for i in range(len(impact_score_types)):
             gene_cors = resultAnalyzer.calculate_cor_impact_cosine(gene_pathway2cosine,
                                                                    gene_impact_scores,
@@ -355,7 +365,8 @@ def batch_analyze_cor_impact_cosine():
                         cols[2]: gene_cors[0][1],
                         cols[3]: gene_cors[1].correlation,
                         cols[4]: gene_cors[1].pvalue,
-                        cols[5]: gene_cors[2]}
+                        cols[5]: gene_cors[2],
+                        cols[6]: total_pmids}
             impact_rows[i].append(gene_row)
         counter += 1
         # if counter == 2:
@@ -366,9 +377,9 @@ def batch_analyze_cor_impact_cosine():
     ph.log_mem(logger)
     type2df = {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in range(len(impact_score_types))}
     # Save the files
-    file_name = DIR + "{}_impact_pubmed_score_cor.txt"
-    for type, df in type2df.items():
-        type_file_name = file_name.format(type)
+    file_name = DIR + "{}_impact_pubmed_score_cor" + ("_random" if is_for_permuation else "") + ".txt"
+    for df_type, df in type2df.items():
+        type_file_name = file_name.format(df_type)
         df.to_csv(type_file_name, sep = '\t', index=False)
     return type2df
 
@@ -527,7 +538,7 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 if __name__ == '__main__':
     # search_abstracts_for_all_genes()
-    results_dfs = batch_analyze_cor_impact_cosine()
+    results_dfs = batch_analyze_cor_impact_cosine(is_for_permuation=True)
     for impact_type, results_df in results_dfs.items():
         print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())

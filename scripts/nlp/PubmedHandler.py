@@ -44,6 +44,7 @@ MAX_WORKER = psutil.cpu_count(logical=False)
 # Cache loaded pubmed abstracts, which should be big
 _pmid2abstract = None
 
+
 def ensure_out_dir(dir_name: str):
     path = Path(dir_name)
     if not path.exists():
