@@ -276,7 +276,7 @@ def search_abstracts_for_all_genes():
     ph.search_abstracts_for_all_via_ray(genes)
 
 
-def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataFrame:
+def batch_analyze_cor_impact_cosine():
     """
     Perform batch analysis using all downloaded pubmed abstracts.
     :return:
@@ -287,8 +287,6 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
     logger.info("Loading abstract emebdding...")
     pmid2emebdding = ph.load_pmid2embedding()
     logger.info("Size of abstract2embedding: {}.".format(len(pmid2emebdding)))
-    if is_for_permuation:
-        pmid_list = list(pmid2emebdding.keys())
     ph.log_mem(logger)
     logger.info("Loading genes2pmids...")
     gene2pmids = ph.load_gene2pmids()
@@ -307,11 +305,30 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
     which = np.isin(genes, list(gene2pmids.keys()))
     genes = genes[which]
     logger.info("Total genes in gene2pmids: {}.".format(len(genes)))
-    # Used to select top genes
+    # For local test
+    genes = random.sample(genes.tolist(), 100)
+    genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+    logger.info("Genes subject to analysis: {}.".format(len(genes)))
+    # This is for real data
+    logger.info("Starting the real data...")
+    _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df,
+                                     False, pathway2embedding, pmid2emebdding)
+    logger.info("Done the real data. Starting the permuated data...")
+    # This is for permutation
+    _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
+                                     pmid2emebdding)
+    logger.info("Done permutated data.")
+
+
+def _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, is_for_permuation, pathway2embedding,
+                                     pmid2emebdding):
+    # Used to select top pmids
     pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
     # Only need this sorted index
     pmid_reactome_sim_df_index = pmid_reactome_sim_df.index
     logger.info("Load pmid2reactome_sim_df.shape: {}.".format(pmid_reactome_sim_df.shape))
+    if is_for_permuation:
+        pmid_list = list(pmid2emebdding.keys())
     # Keep all results in this DataFrame
     cols = ["Gene", "Pearson", "Pearson_PValue", "Spearman", "Spearman_PValue", "Impacted_Pathways", "Total_Abstracts"]
     # Three types of impact scores
@@ -319,10 +336,6 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
     impact_rows = [[], [], []]
     counter = 0
     time0 = time.time()
-    # For local test
-    genes = random.sample(genes.tolist(), 100)
-    genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
-    logger.info("Genes subject to analysis: {}.".format(len(genes)))
     for gene in genes:
         logger.info("Handling gene: {}...".format(gene))
         logger.info("Searching pubmed abstracts")
@@ -332,7 +345,7 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
             continue
         logger.info("Found pmids: {}.".format(len(gene_pmids)))
         total_pmids = len(gene_pmids)
-        if is_for_permuation: # Permutation test
+        if is_for_permuation:  # Permutation test
             needed_pmids = total_pmids if total_pmids < TOP_PMID_NUMBER else TOP_PMID_NUMBER
             gene_pmids = random.sample(pmid_list, needed_pmids)
             logger.info("Randomly selected {} PMIDs.".format(needed_pmids))
@@ -351,7 +364,7 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
             continue
         gene_pathway2cosine = resultAnalyzer.calculate_cosine_similiarity(list(gene_pmid2embedding.values()),
                                                                           pathway2embedding)
-        gene_impact_scores = impact_df.loc[impact_df['Gene'] == gene, ]
+        gene_impact_scores = impact_df.loc[impact_df['Gene'] == gene,]
         # Use this for loop since i is needed at the end
         for i in range(len(impact_score_types)):
             gene_cors = resultAnalyzer.calculate_cor_impact_cosine(gene_pathway2cosine,
@@ -375,13 +388,14 @@ def batch_analyze_cor_impact_cosine(is_for_permuation: bool = False) -> pd.DataF
     time1 = time.time()
     logger.info("Total time used: {} seconds.".format(time1 - time0))
     ph.log_mem(logger)
-    type2df = {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in range(len(impact_score_types))}
+    type2df = {impact_score_types[i]: pd.DataFrame(impact_rows[i], columns=cols) for i in
+               range(len(impact_score_types))}
     # Save the files
     file_name = DIR + "{}_impact_pubmed_score_cor" + ("_random" if is_for_permuation else "") + ".txt"
     for df_type, df in type2df.items():
         type_file_name = file_name.format(df_type)
-        df.to_csv(type_file_name, sep = '\t', index=False)
-    return type2df
+        df.to_csv(type_file_name, sep='\t', index=False)
+    # return type2df
 
 
 def _prepare_sent_cor_analysis(gene: str,
@@ -538,7 +552,7 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 if __name__ == '__main__':
     # search_abstracts_for_all_genes()
-    results_dfs = batch_analyze_cor_impact_cosine(is_for_permuation=True)
-    for impact_type, results_df in results_dfs.items():
-        print("{}:\n{}".format(impact_type, results_df))
+    batch_analyze_cor_impact_cosine()
+    # for impact_type, results_df in results_dfs.items():
+    #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
