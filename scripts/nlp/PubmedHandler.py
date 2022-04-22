@@ -2,6 +2,7 @@
 # on this web post: https://www.toptal.com/python/beginners-guide-to-concurrency-and-parallelism-in-python
 import collections
 import concurrent.futures
+import datetime
 import gzip
 import logging
 import os
@@ -186,7 +187,9 @@ def search_abstracts(gene: str) -> dict:
     gene = gene.lower()
     for pmid in _pmid2abstract.keys():
         abstract = _pmid2abstract[pmid]
-        if gene in abstract:
+        # A rather strigent search to avoid check inside the word
+        search_key = " " + gene + " "
+        if search_key in abstract:
             found.append(pmid)
     return found
 
@@ -382,8 +385,15 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
     Search abstracts for a list of genes via ray
     :return:
     """
-    genes = random.sample(genes.tolist(), 5000)
-    # genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+    # For MacPro
+    total_genes = 5000
+    # For local test
+    # total_genes = 10
+    genes = random.sample(genes.tolist(), total_genes)
+    seed_genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+    for seed_gene in seed_genes:
+        if seed_gene not in genes:
+            genes.append(seed_gene)
     logger.info("Total genes for searching: {}.".format(len(genes)))
     ray.init(num_cpus=MAX_WORKER)
     logger.info("Initializing {} ray actors...".format(MAX_WORKER))
@@ -399,12 +409,13 @@ def search_abstracts_for_all_via_ray(genes: list) -> dict:
         for gene in genes:
             gene2pmids[gene].append(pmid)
     # print(gene2pmids)
-    save_file_name = OUT_DIR + "/../nlp_files/pmid2genes.pkl"
+    today = datetime.date.today()
+    save_file_name = OUT_DIR + "/../nlp_files/gene2pmids_" + today.strftime('%m%d%Y') + ".pkl"
     file = open(save_file_name, 'wb')
     pickle.dump(gene2pmids, file)
 
 
-def load_gene2pmids(file_name: str = OUT_DIR + "/../nlp_files/pmid2genes.pkl") -> dict:
+def load_gene2pmids(file_name: str = OUT_DIR + "/../nlp_files/gene2pmids.pkl") -> dict:
     file = open(file_name, 'rb')
     return pickle.load(file)
 
@@ -461,7 +472,10 @@ class AbstractSearcher(object):
         for gene in self.all_genes:
             all_names = uph.get_names(gene)
             for name in all_names:
-                if name.lower() in abstract:
+                # Use a very stringent search. This should be updated
+                # in the future to use more sophisticated word bounds.
+                search_key = " " + name.lower() + " "
+                if search_key in abstract:
                     found_genes.append(gene)
                     break
         if len(found_genes) == 0:
@@ -475,6 +489,6 @@ class AbstractSearcher(object):
     def clean(self):
         self.pmid2genes.clear()
 
-
-if __name__ == '__main__':
-    embed_abstracts_via_ray()
+#
+# if __name__ == '__main__':
+#     embed_abstracts_via_ray()

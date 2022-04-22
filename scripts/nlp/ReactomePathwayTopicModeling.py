@@ -570,8 +570,8 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 
 if __name__ == '__main__':
-    # search_abstracts_for_all_genes()
-    batch_analyze_cor_impact_cosine(10, 2)
+    search_abstracts_for_all_genes()
+    # batch_analyze_cor_impact_cosine(10, 2)
     # for impact_type, results_df in results_dfs.items():
     #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
