@@ -344,8 +344,8 @@ def process_abstracts_via_ray(ray_actors: list,
     start = 0
     # For the final run
     # Use a little bit buffer for the total jobs
-    # step = 1000 * MAX_WORKER
-    step = 200
+    step = 1000 * MAX_WORKER
+    # step = 200
     end = start + step
     pmid2result = {}
     while start < len(pmid2abstract):
@@ -465,17 +465,27 @@ class AbstractSearcher(object):
     def __init__(self, all_genes):
         self.all_genes = all_genes
         self.pmid2genes = {}
+        # cache this for quick performance
+        self.gene2names = self._init_gene2names()
         print("Initialized AbstractSearcher: {}.".format(self))
+
+    def _init_gene2names(self):
+        gene2names = uph.load_gene2othernames()
+        # Do some pre-processes for performance
+        updated_gene2names = collections.defaultdict(list)
+        for gene, names in gene2names.items():
+            for name in names:
+                # Use a very stringent search. This should be updated
+                # in the future to use more sophisticated word bounds.
+                updated_gene2names[gene].append(" " + name.lower() + " ")
+        return updated_gene2names
 
     def process(self, pmid, abstract):
         found_genes = []
         for gene in self.all_genes:
-            all_names = uph.get_names(gene)
+            all_names = self.gene2names[gene]
             for name in all_names:
-                # Use a very stringent search. This should be updated
-                # in the future to use more sophisticated word bounds.
-                search_key = " " + name.lower() + " "
-                if search_key in abstract:
+                if name in abstract:
                     found_genes.append(gene)
                     break
         if len(found_genes) == 0:

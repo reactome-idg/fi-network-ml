@@ -21,6 +21,8 @@ def load_gene2othernames(file_name: str = SOURCE_FILE_NAME) -> dict:
     df = pd.read_csv(file_name, sep="\t")
     gene2names = {}
     for i in range(df.shape[0]):
+        if pd.isnull(df.iloc[i, 3]):
+            continue # No gene name for this
         names = set()
         names.add(df.iloc[i, 3]) # Primary gene names
         # Get gene synonyms
