@@ -204,6 +204,43 @@ def calculate_pathway_abstract_cosine_similarity_via_ray(pmid2emebedding,
     return pmid2similarity
 
 
+def plot_permutation_results(real_data_file_pattern: str,
+                             random_data_file_pattern: str,
+                             num_of_permutation: int) -> pd.DataFrame:
+    """
+    Plot the permutation results and real results together
+    :param real_data_file_pattern:
+    :param random_data_file_pattern:
+    :param num_of_permutation:
+    :return:
+    """
+    cor_df = None
+    for i in range(num_of_permutation):
+        # Load real data
+        real_data_file_name = (real_data_file_pattern + "_{}.txt").format(i)
+        cor_df_tmp = pd.read_csv(real_data_file_name, sep="\t")
+        cor_df_tmp['Batch'] = "Real_{}".format(i)
+        # Load permutation data
+        random_data_file_name = (random_data_file_pattern + "_{}.txt").format(i)
+        random_cor_df_tmp = pd.read_csv(random_data_file_name, sep="\t")
+        random_cor_df_tmp['Batch'] = 'Random_{}'.format(i)
+        # Merge these two data together
+        if cor_df is None:
+            cor_df = cor_df_tmp
+        else:
+            cor_df = pd.concat([cor_df, cor_df_tmp], axis=0)
+        cor_df = pd.concat([cor_df, random_cor_df_tmp], axis=0)
+    print(cor_df)
+    fig = px.violin(cor_df,
+                    y = 'Pearson',
+                    x='Batch',
+                    box = True,
+                    points=None,
+                    hover_data=cor_df.columns)
+    fig.write_html(real_data_file_pattern + ".violin.html")
+    return cor_df
+
+
 def plot_cor_batch_results(file_name: str,
                            col_index: int = 1,
                            color_col_name: str = 'Tdark',
@@ -254,9 +291,10 @@ def plot_cor_batch_results(file_name: str,
 
 if __name__ == '__main__':
     dir_name = '../../results/impact_analysis/nlp_files/'
-    file_name = dir_name + 'Average_Inhibition_impact_pubmed_score_cor.txt'
-    plot_cor_batch_results(file_name, need_violin_plot=True, color_col_name='Annotated')
-    plot_cor_batch_results(file_name, need_violin_plot=True, color_col_name='Tdark')
+    file_name = dir_name + 'FDR_impact_pubmed_score_cor_random_04242022_0.txt'
+    # file_name = dir_name + 'Average_Inhibition_impact_pubmed_score_cor_random_04242022_0.txt'
+    plot_cor_batch_results(file_name, need_violin_plot=False, color_col_name='Annotated')
+    # plot_cor_batch_results(file_name, need_violin_plot=True, color_col_name='Tdark')
 
 
 @ray.remote

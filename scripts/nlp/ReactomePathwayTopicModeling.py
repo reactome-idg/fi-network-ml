@@ -278,7 +278,8 @@ def search_abstracts_for_all_genes():
 
 
 def batch_analyze_cor_impact_cosine(check_genes: int = 2,
-                                    runs: int = 1):
+                                    runs: int = 1,
+                                    need_permutation: bool = True):
     """
     Perform batch analysis using all downloaded pubmed abstracts.
     :return:
@@ -313,14 +314,17 @@ def batch_analyze_cor_impact_cosine(check_genes: int = 2,
     for i in range(runs):
         file_postifx = "_{}_{}".format(today.strftime("%m%d%Y"), i)
         logger.info("Working on " + file_postifx)
-        # For local test
-        genes = random.sample(master_genes, check_genes)
-        # Make sure these genes are in the test genes list
-        seed_genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
-        for seed_gene in seed_genes:
-            if seed_gene not in genes:
-                logger.info("Append seed gene: {}.".format(seed_gene))
-                genes.append(seed_gene)
+        # Need sampling
+        if check_genes < len(master_genes):
+            genes = random.sample(master_genes, check_genes)
+            # Make sure these genes are in the test genes list
+            seed_genes = ['DLG4', 'NLGN1', 'LRFN1', 'TANC1']
+            for seed_gene in seed_genes:
+                if seed_gene not in genes:
+                    logger.info("Append seed gene: {}.".format(seed_gene))
+                    genes.append(seed_gene)
+        else:
+            genes = list(master_genes)
         logger.info("Genes subject to analysis: {}.".format(len(genes)))
         # Used to select top pmids
         pmid_reactome_sim_df = load_pmid2reactome_similarity_df()
@@ -335,11 +339,12 @@ def batch_analyze_cor_impact_cosine(check_genes: int = 2,
                                          pmid_reactome_sim_df_index,
                                          file_postifx)
         logger.info("Done the real data. Starting the permuated data...")
-        # This is for permutation
-        _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
-                                         pmid2emebdding, pmid_reactome_sim_df_index,
-                                         file_postifx)
-        logger.info("Done permutated data.")
+        if need_permutation:
+            # This is for permutation
+            _batch_analyze_cor_impact_cosine(gene2pmids, genes, impact_df, True, pathway2embedding,
+                                             pmid2emebdding, pmid_reactome_sim_df_index,
+                                             file_postifx)
+            logger.info("Done permutated data.")
         logger.info("Done " + file_postifx)
 
 
@@ -570,8 +575,9 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
 
 
 if __name__ == '__main__':
-    search_abstracts_for_all_genes()
-    # batch_analyze_cor_impact_cosine(10, 2)
+    # search_abstracts_for_all_genes()
+    # Basically run all genes
+    batch_analyze_cor_impact_cosine(20000, 1, need_permutation=False)
     # for impact_type, results_df in results_dfs.items():
     #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
