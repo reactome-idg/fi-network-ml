@@ -1,0 +1,1 @@
+/Users/wug/git/reactome-idg/tcrdws/UniProtGeneDevLevelsTypes_100721.txt
