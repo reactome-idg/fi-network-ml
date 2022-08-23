@@ -90,7 +90,7 @@ public class PathwayImpactAnalyzer {
      */
     @Test
     public void performFuzzyLogicAnalysis() throws Exception {
-//    	outFileName = "test.txt";
+    	outFileName = "test.txt";
     	MySQLAdaptor mysqlDBA = DatabaseConfig.getMySQLDBA();
     	// Get the list of pathways having ELV
     	List<GKInstance> pathways = loadPathwaysForAnalysis(mysqlDBA);

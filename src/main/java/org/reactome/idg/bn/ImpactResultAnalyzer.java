@@ -1,12 +1,10 @@
 package org.reactome.idg.bn;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,23 +18,97 @@ import org.gk.model.GKInstance;
 import org.gk.model.InstanceUtilities;
 import org.gk.model.ReactomeJavaConstants;
 import org.gk.persistence.MySQLAdaptor;
-import org.gk.schema.InvalidAttributeException;
 import org.gk.util.FileUtilities;
 import org.junit.Test;
 import org.reactome.annotate.GeneSetAnnotation;
 import org.reactome.annotate.PathwayBasedAnnotator;
 import org.reactome.data.ReactomeAnalyzerTopicHelper;
 import org.reactome.fi.util.InteractionUtilities;
+import org.reactome.fi.util.MathUtilities;
 import org.reactome.idg.util.DatabaseConfig;
 import org.reactome.pathway.booleannetwork.DrugToTargetsMapper;
+import org.reactome.r3.util.FileUtility;
 
-
-@SuppressWarnings("unchecked")
 public class ImpactResultAnalyzer {
 	public static final String RESULT_DIR = "results/impact_analysis/";
 	private static final Logger logger = Logger.getLogger(ImpactResultAnalyzer.class);
 	
 	public ImpactResultAnalyzer() {
+	}
+	
+	@Test
+	public void randomSelectTdarkGenesForPathways() throws IOException {
+		String resultFile = RESULT_DIR + "impact_analysis_092121_with_enrichment_092921_dev_level_100521.txt";
+		FileUtility fu = new FileUtility();
+		fu.setInput(resultFile);
+		String line = fu.readLine();
+		double fdrThreshold = 1.0E-3d;
+		double impactScoreThreshold = 0.0d; // Either activation or inhibition
+		Map<String, List<ImpactRecord>> gene2records = new HashMap<>();
+		while ((line = fu.readLine()) != null) {
+			// Consider TDark, not annotated, fdr < threshold and impact score
+			String[] tokens = line.split("\t");
+			if (!tokens[11].equals("Tdark"))
+				continue;
+			if (!tokens[7].equals("false"))
+				continue;
+			double fdr = Double.parseDouble(tokens[10]);
+			if (fdr > fdrThreshold)
+				continue;
+			double averageActivation = Double.parseDouble(tokens[4]);
+			double averageInhibition = Double.parseDouble(tokens[6]);
+			if (!(averageActivation > impactScoreThreshold) && !(averageInhibition > impactScoreThreshold))
+				continue;
+			ImpactRecord record = new ImpactRecord();
+			record.gene = tokens[0];
+			record.dbId = Long.parseLong(tokens[1]);
+			record.pathwayName = tokens[2];
+			record.averageActivation = averageActivation;
+			record.averageInhibition = averageInhibition;
+			record.fdr = fdr;
+			gene2records.compute(record.gene, (key, list) -> {
+				if (list == null)
+					list = new ArrayList<>();
+				list.add(record);
+				return list;
+			});
+ 		}
+		fu.close();
+		// Choose genes having at least two pathways
+		int pathwayNumber = 2;
+		List<String> genes = gene2records.keySet()
+				.stream()
+				.filter(g -> gene2records.get(g).size() > pathwayNumber)
+				.collect(Collectors.toList());
+		System.out.println("Total genes selected: " + gene2records.size());
+		// Random sampling 20 genes
+		int sampleSize = 20;
+		Set<String> sampledGenes = MathUtilities.randomSampling(genes, sampleSize);
+		for (String gene : sampledGenes) {
+			System.out.println(gene);
+			List<ImpactRecord> records = gene2records.get(gene);
+			// Try to sort these records
+			records.sort((r1, r2) -> {
+				Double score1 = Math.max(r1.averageActivation, r1.averageInhibition);
+				Double score2 = Math.max(r2.averageActivation, r2.averageInhibition);
+				return score1.compareTo(score2);
+			});
+			// Record the current rank
+			for (int i = 0; i < records.size(); i++)
+				records.get(i).rank = i;
+			// Perform the second rank
+			records.sort((r1, r2) -> {
+				return new Double(r2.fdr).compareTo(new Double(r1.fdr));
+			});
+			for (int i = 0; i < records.size(); i++) {
+				records.get(i).rank += i;
+			}
+			// Reverse the ranking
+			records.sort((r1, r2) -> r2.rank - r1.rank);
+			int rank = 1;
+			for (ImpactRecord r : records)
+				System.out.println("\t" + rank ++ + "\t" + r.dbId + "\t" + r.pathwayName);
+		}
 	}
 	
 
@@ -326,6 +398,44 @@ public class ImpactResultAnalyzer {
 	}
 	
 	/**
+	 * Dump all Reactome annotated genes.
+	 * @throws Exception
+	 */
+	@Test
+	public void dumpReactomeGenes() throws Exception {
+		Map<String, Set<String>> pathway2genes = loadPathwayIdToGenes();
+		Set<String> genes = pathway2genes.values().stream().flatMap(c -> c.stream()).collect(Collectors.toSet());
+		List<String> geneList = genes.stream().sorted().collect(Collectors.toList());
+		String fileName = RESULT_DIR + "ReactomeGenes_Ver_77.txt";
+		FileUtilities fu = new FileUtilities();
+		fu.setOutput(fileName);
+		for (String gene : geneList) {
+			fu.printLine(gene);
+		}
+		fu.close();
+		System.out.println("Total genes: " + genes.size());
+	}
+	
+	/**
+	 * Dump all Reactome annotated genes.
+	 * @throws Exception
+	 */
+	@Test
+	public void dumpReactomeGenesPerPathways() throws Exception {
+		Map<String, Set<String>> pathway2genes = loadPathwayIdToGenes();
+		String fileName = RESULT_DIR + "ReactomePathwayGenes_Ver_77.txt";
+		FileUtilities fu = new FileUtilities();
+		fu.setOutput(fileName);
+		for (String pathway : pathway2genes.keySet()) {
+			Set<String> genes = pathway2genes.get(pathway);
+			String geneText = genes.stream().sorted().collect(Collectors.joining(","));
+			fu.printLine(pathway + "\t" + geneText);
+		}
+		fu.close();
+		System.out.println("Total pathways: " + pathway2genes.size());
+	}
+	
+	/**
 	 * A simple way to grep genes for individual pathways from the MySQL database used for simulation.
 	 * @return
 	 * @throws Exception
@@ -383,6 +493,20 @@ public class ImpactResultAnalyzer {
             }
         }
         return refSeqs;
+    }
+    
+    private class ImpactRecord {
+    	private String gene;
+    	private double averageActivation;
+    	private double averageInhibition;
+    	private double fdr;
+    	private Long dbId;
+    	private String pathwayName;
+    	private int rank = 0;
+    	
+    	public ImpactRecord() {
+    		
+    	}
     }
 
 }
