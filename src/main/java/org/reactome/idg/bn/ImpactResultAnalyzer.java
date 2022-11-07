@@ -440,7 +440,7 @@ public class ImpactResultAnalyzer {
 	 * @return
 	 * @throws Exception
 	 */
-	private Map<String, Set<String>> loadPathwayIdToGenes() throws Exception {
+	public Map<String, Set<String>> loadPathwayIdToGenes() throws Exception {
 		MySQLAdaptor dba = DatabaseConfig.getMySQLDBA();
 		PathwayImpactAnalyzer impactAnalyzer = new PathwayImpactAnalyzer();
 		List<GKInstance> pathways = impactAnalyzer.loadPathwaysForAnalysis(dba);

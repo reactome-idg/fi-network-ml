@@ -29,11 +29,20 @@ import org.reactome.idg.util.ApplicationConfig;
 public class CoExpressionLoader {
     private static final Logger logger = Logger.getLogger(CoExpressionLoader.class);
     private boolean needNegative = false;
+    private boolean useAbsoluteValue = true;
     
     public CoExpressionLoader() {
     }
+    
+    public boolean isUseAbsoluteValue() {
+		return useAbsoluteValue;
+	}
 
-    public boolean isNeedNegative() {
+	public void setUseAbsoluteValue(boolean useAbsoluteValue) {
+		this.useAbsoluteValue = useAbsoluteValue;
+	}
+
+	public boolean isNeedNegative() {
         return needNegative;
     }
 
@@ -113,7 +122,9 @@ public class CoExpressionLoader {
                     continue; // Just ignore NA
                 }
                 Float value = Float.parseFloat(tokens[i]);
-                values.add(Math.abs(value));
+                if (useAbsoluteValue)
+                	value = Math.abs(value);
+                values.add(value);
             }
             c ++;
         }
@@ -168,7 +179,12 @@ public class CoExpressionLoader {
                     continue; // Just ignore NA
                 }
                 Double value = new Double(tokens[i]);
-                if (Math.abs(value) > cutoff) {
+                boolean isSelected = false;
+                if (value > cutoff)
+                	isSelected = true;
+                else if (useAbsoluteValue && Math.abs(value) > cutoff)
+                	isSelected = true;
+                if (isSelected) {
                     String gene1 = tokens[0];
                     String gene2 = geneList.get(i);
                     if (gene1.equals(gene2))
