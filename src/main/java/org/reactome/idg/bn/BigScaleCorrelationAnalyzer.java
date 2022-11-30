@@ -34,7 +34,7 @@ public class BigScaleCorrelationAnalyzer {
 	public BigScaleCorrelationAnalyzer() {
 	}
 	
-	public Set<String> loadCoExpNetwork() throws IOException {
+	private Set<String> loadCoExpNetwork() throws IOException {
 		CoExpressionLoader loader = new CoExpressionLoader();
 		loader.setUseAbsoluteValue(false); // Only positive correlations are used. Most likely negative correlations are not
 		                                   // reliable considering the strong positive biased distribution. See the Jupyte notebook
