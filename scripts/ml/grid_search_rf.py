@@ -20,7 +20,8 @@ def run_grid_search(data_matrix_file: str = '/Users/conleyp/projects/fi-run/test
                                                     'max_features': ['sqrt', 'log2'],
                                                     'class_weight': ['balanced', 'balanced_subsample']
                                                     },
-                    n_jobs: int = 12):
+                    n_jobs: int = 12,
+                    random_state = None):
     print('Loading data...')
     time0 = time.time()
     df = pd.read_csv(data_matrix_file)
@@ -31,7 +32,7 @@ def run_grid_search(data_matrix_file: str = '/Users/conleyp/projects/fi-run/test
     print('Total time used: {}'.format(time1 - time0))
 
     scoring = ["accuracy", "balanced_accuracy", "precision", "recall", "f1", "roc_auc"]
-    clf = RandomForestClassifier()
+    clf = RandomForestClassifier(random_state=random_state)
     size_pos = int(df[df.FI == 1].shape[0]*percent_of_sampling)
     print('Positive sampling size: {}'.format(size_pos))
     size_neg = int(df[df.FI == 0].shape[0]*percent_of_sampling)
@@ -88,8 +89,10 @@ def plot_grid_search_results(result_file_name: str = '/Volumes/ssd/results/react
                 (df[score_col_name] > score_threshold)]
     # Jitter the dots a little bit so that we can view them easiler
     df['run_jitter'] = df['run'].map(lambda v: v + random() * 0.3)
-    df_counter = df.groupby(df['run']).count().sort_values(by='iteration', ascending=False)
-    print(df_counter.head(10))
+    df_sum = df.groupby('run')[score_col_name].agg(['count', 'min', 'max', 'mean', 'std'])\
+        .sort_values(by='mean', ascending=False)
+    df_sum['std_percent'] = df_sum.apply(lambda row : row['std'] / row['mean'] * 100, axis=1)
+    print(df_sum.head(20))
     print('After filtering: {}'.format(df.shape))
     fig = px.scatter(df,
                      x='run_jitter',
@@ -104,7 +107,7 @@ def plot_grid_search_results(result_file_name: str = '/Volumes/ssd/results/react
                                  'param_min_samples_split',
                                  score_std_col_name])
     fig.write_html(out_file_name)
-    return df
+    return df_sum
 
 
 # run_grid_search(percent_of_sampling=0.1,
@@ -117,3 +120,16 @@ def plot_grid_search_results(result_file_name: str = '/Volumes/ssd/results/react
 #                     'max_features': ['sqrt'],
 #                     'class_weight': ['balanced', 'balanced_subsample']
 #                 })
+
+# The final setting to be used
+run_grid_search(percent_of_sampling=0.1,
+                parameters_for_search={
+                    'n_estimators': [100],
+                    'criterion': ['gini'],
+                    'max_depth': [8],
+                    'min_samples_split': [4],
+                    'min_samples_leaf': [2],
+                    'max_features': ['sqrt'],
+                    'class_weight': ['balanced_subsample']
+                })
+
