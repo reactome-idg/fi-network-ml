@@ -4,25 +4,48 @@ This script is used to analyze F1 score based on precision/recall file geneated 
 
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
 
 
-def analyze_rf_f1(need_plot=True):
+def analyze_rf_f1():
     """
     The following code is used to plot the performance measure for the trained Random Forest
     """
     dir_name = '../../results/features_check'
     precision_recall_file = dir_name + '/precision_recall.csv'
-
     pr_df = pd.read_csv(precision_recall_file)
+    html_file_name = precision_recall_file.replace('.csv', '.html')
+    analyze_rf_performance(pr_df, html_file=html_file_name)
+
+
+def analyze_rf_performance(precision_recall_df: pd.DataFrame,
+                           need_plot: bool = True,
+                           html_file: str = None):
     # Calculate F1 score based on precision and recall
-    calculate_f1(pr_df)
-    pr_df.rename(columns={'Thresholds': 'Threshold'}, inplace=True)
-    print(pr_df.head())
-    pr_df_plot = create_plot_df(pr_df)
+    if 'F1' not in precision_recall_df.columns:
+        calculate_f1(precision_recall_df)
+    precision_recall_df.rename(columns={'Thresholds': 'Threshold'}, inplace=True)
+    print(precision_recall_df.head())
+    pr_df_plot = create_plot_df(precision_recall_df)
     if need_plot:
         plot = plot_measures(pr_df_plot)
         # Plot the range we want to avoid any exploration
         plot.set(xlim=(0.23559, 1.0), title='Performance of Trained Random Forest')
+        plt.show()
+
+    if html_file:
+        # Plot plotly
+        fig = px.line(pr_df_plot,
+                   x='Threshold',
+                   y='Value',
+                   color='Measure',
+                   title='Performance of Trained Random Forest')
+        fig.show()
+        # Get the output file
+        print('HTML file of the F1 plot: {}'.format(html_file))
+        fig.write_html(html_file)
+
     return pr_df_plot
 
 
@@ -62,9 +85,10 @@ def analyze_nbc_f1(need_plot=True):
     # Need to calculate precision
     df['Precision'] = df.apply(lambda row : row['Recall'] * total_pos_pairs / (row['Recall'] * total_pos_pairs + row['False_Positive_Rate'] * total_neg_pairs),
                                axis=1)
-    print(df)
     calculate_f1(df)
     print(df.head())
+    out_file_name = '../../../../FINetworkBuild_RF/results/2022/NBC_ROC_100_122921_020423.txt'
+    df.to_csv(out_file_name, sep='\t')
     df_plot = create_plot_df(df)
     if need_plot:
         plot = plot_measures(df_plot)
@@ -95,8 +119,5 @@ def plot_two_f1(measure='F1'):
     return merged_df
 
 
-
-
-
-
-
+if __name__=='__main__':
+    analyze_rf_f1()

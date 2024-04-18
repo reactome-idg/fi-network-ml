@@ -16,7 +16,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn import linear_model
 from sklearn.naive_bayes import CategoricalNB, BernoulliNB
 from sklearn.svm import SVC
-
+from sklearn.svm import LinearSVC
 
 """ 
 ------------------------------------------------------------------
