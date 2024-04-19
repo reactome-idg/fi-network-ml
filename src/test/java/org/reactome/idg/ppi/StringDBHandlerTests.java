@@ -29,7 +29,7 @@ public class StringDBHandlerTests extends PPIDataHandlerTests {
     }
     
     @Test
-    public void getGetFlyPPIs() throws IOException {
+    public void testGetFlyPPIs() throws IOException {
         Set<String> ppis = handler.loadFlyPPIs();
         System.out.println("Total fly PPIs: " + ppis.size());
         peekPPIs(ppis);

@@ -35,13 +35,30 @@ import org.reactome.idg.util.ApplicationConfig;
  */
 public class FeatureFileGenerator {
     private static final Logger logger = Logger.getLogger(FeatureFileGenerator.class);
-    // Control if some features should be generated according postive and negative
+    // Control if some features should be generated according positive and negative
     private boolean needNegative = false;
     // Originally Harmonizome- is not added to features for ML. However, for the 
     // idg.reactome.org, we need to add this. Therefore, we have this flag
     private boolean prefixHarmonizomeInFeature = false;
     
     public FeatureFileGenerator() {
+    }
+    
+    /**
+     * Use this method to generate three matrix files: training, test and prediction. Since
+     * the majority time used to build these feature matrices is used to load all features, 
+     * use this method will save a lot of time.
+     */
+    public void buildThreeMatrixFiles(String trainingFile,
+                                      String testFile,
+                                      String predictionFile) throws Exception {
+        logger.info("Starting to build three matrix files...");
+        Map<String, Set<String>> feature2pairs = loadAllFeatures();
+        // Generate the three files in one single method to save the loading feature times.
+        buildTrainingMatrix(feature2pairs, trainingFile);
+        buildTestMatrix(feature2pairs, trainingFile, testFile);
+        generatePredictionMatrix(feature2pairs, predictionFile);
+        logger.info("Done with building three matrix files.");
     }
     
     /**
@@ -84,11 +101,26 @@ public class FeatureFileGenerator {
     
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("java -Xmx48G -jar XXX {check_features|generate_matrix|generate_test_matrix|generate_prediction_file} {out_file} {training_file}");
+            System.err.println("java -Xmx48G -jar XXX {generate_three_files|check_features|generate_matrix|generate_test_matrix|generate_prediction_file} {training_file} {test_file} {prediction_file}");
             System.exit(1);
         }
         if (args[0].equals("check_features")) {
             new FeatureFileGenerator().checkFeatures();
+            return;
+        }
+        if (args[0].equals("generate_three_files")) {
+            if (args.length < 4) {
+                System.err.println("Please provide three file names in order for, training, test, and prediction");
+                System.exit(1);
+            }
+            try {
+                new FeatureFileGenerator().buildThreeMatrixFiles(args[1],
+                        args[2], 
+                        args[3]);
+            }
+            catch(Exception e) {
+                logger.error(e.getMessage(), e);
+            }
             return;
         }
         if (args[0].equals("generate_matrix")) {
@@ -136,9 +168,12 @@ public class FeatureFileGenerator {
     }
     
     public void generatePredictionFile(String outFileName) throws Exception {
-        logger.info("Loading all features...");
         Map<String, Set<String>> feature2pairs = loadAllFeatures();
-        logger.info("All features have been loaded.");
+        generatePredictionMatrix(feature2pairs, outFileName);
+    }
+
+    private void generatePredictionMatrix(Map<String, Set<String>> feature2pairs, String outFileName)
+            throws IOException {
         // Need to collect all genes in the features
         List<String> allGenes = feature2pairs.values()
                                              .stream()
@@ -216,6 +251,12 @@ public class FeatureFileGenerator {
      */
     public void buildFeatureMatrixForTest(String trainingFileName,
                                           String outFileName) throws Exception {
+        Map<String, Set<String>> feature2pairs = loadAllFeatures();
+        buildTestMatrix(feature2pairs, trainingFileName, outFileName);
+    }
+
+    private void buildTestMatrix(Map<String, Set<String>> feature2pairs, String trainingFileName, String outFileName)
+            throws IOException, Exception {
         // Load all pairs in the training data set. Since random pairs are used as negative,
         // different training data set may be different.
         Set<String> excludedPairs = null;
@@ -227,7 +268,6 @@ public class FeatureFileGenerator {
         logger.info("Total pairs that loaded from the training data and will be excluded: " + excludedPairs.size());
         // The following steps are very similar to ones used to generate the training dataset.
         // The only difference is that pairs from the training data sets will be removed.
-        Map<String, Set<String>> feature2pairs = loadAllFeatures();
         Set<String> nonReactomeFIs = ApplicationConfig.getConfig().loadNonReactomeFIsInGenes();
         logger.info("Total non-Reactome FIs: " + nonReactomeFIs.size());
         buildFeatureMatrix(nonReactomeFIs,
@@ -246,6 +286,10 @@ public class FeatureFileGenerator {
      */
     public void buildFeatureMatrix(String outFileName) throws Exception {
         Map<String, Set<String>> featureToPairs = loadAllFeatures();
+        buildTrainingMatrix(featureToPairs, outFileName);
+    }
+
+    private void buildTrainingMatrix(Map<String, Set<String>> featureToPairs, String outFileName) throws IOException {
         // Positive training data set
         Set<String> reactomeFIs = ApplicationConfig.getConfig().loadReactomeFIsInGenes();
         logger.info("Total Reactome FIs: " + reactomeFIs.size()); 

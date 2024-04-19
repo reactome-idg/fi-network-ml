@@ -13,11 +13,12 @@ import org.reactome.idg.model.FeatureType;
 import org.reactome.idg.util.ApplicationConfig;
 
 /**
- * This class is used to map MOD PPIs to human. For convenience, human PPIs without mapping
- * should be loaded using this class too.
+ * This class is used to map MOD PPIs to human. For convenience, human PPIs
+ * without mapping should be loaded using this class too.
+ * 
  * @author wug
  */
-@SuppressWarnings("unchecked") 
+@SuppressWarnings("unchecked")
 public class MappedPPIDataHandler extends PPIDataHandler {
     private static Logger logger = Logger.getLogger(MappedPPIDataHandler.class);
     private PPIDataHandler biogridHandler = new BioGridHandler();
@@ -26,13 +27,13 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     private OrthologousMapper mapper = new PantherOrthologousMapper();
     private Map<String, String> uniprotToGene;
     private boolean useUniProt = false;
-    
+
     public MappedPPIDataHandler() {
     }
-    
+
     @Override
-    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB, FeatureSource.BioPlex},
-                 type = FeatureType.Protein_Interaction)
+    @FeatureDesc(sources = { FeatureSource.BioGrid, FeatureSource.StringDB,
+            FeatureSource.BioPlex }, type = FeatureType.Protein_Interaction)
     public Set<String> loadHumanPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadHumanPPIs();
         logger.info("Total human PPIs from BioGrid: " + bPPIs.size());
@@ -42,11 +43,10 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         logger.info("Total human PPIs from BioPlex: " + bpPPIs.size());
         return mergePPIs(bPPIs, sPPIs, bpPPIs);
     }
-    
+
     @Override
-    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
-                 type = FeatureType.Protein_Interaction,
-                 species = FeatureSpecies.Drosophila_melanogaster)
+    @FeatureDesc(sources = { FeatureSource.BioGrid,
+            FeatureSource.StringDB }, type = FeatureType.Protein_Interaction, species = FeatureSpecies.Drosophila_melanogaster)
     public Set<String> loadFlyPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadFlyPPIs();
         logger.info("Total fly PPIs from BioGrid: " + bPPIs.size());
@@ -56,8 +56,7 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         return mapMODPPIsToHuman(merged, mapper.loadFlyIdToHumanUniProtMap());
     }
 
-    private Set<String> mergePPIs(Set<String> bPPIs,
-                                  Set<String> ... otherPPIs) {
+    private Set<String> mergePPIs(Set<String> bPPIs, Set<String>... otherPPIs) {
         Set<String> merged = new HashSet<>(bPPIs);
         for (Set<String> otherSet : otherPPIs)
             merged.addAll(otherSet);
@@ -71,9 +70,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
 
     @Override
-    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
-                 type = FeatureType.Protein_Interaction,
-                 species = FeatureSpecies.Saccharomyces_cerevisiae)
+    @FeatureDesc(sources = { FeatureSource.BioGrid,
+            FeatureSource.StringDB }, type = FeatureType.Protein_Interaction, species = FeatureSpecies.Saccharomyces_cerevisiae)
     public Set<String> loadYeastPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadYeastPPIs();
         logger.info("Total yeast PPIs from BioGrid: " + bPPIs.size());
@@ -84,9 +82,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
     }
 
     @Override
-    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
-                 type = FeatureType.Protein_Interaction,
-                 species = FeatureSpecies.Caenorhabditis_elegans)
+    @FeatureDesc(sources = { FeatureSource.BioGrid,
+            FeatureSource.StringDB }, type = FeatureType.Protein_Interaction, species = FeatureSpecies.Caenorhabditis_elegans)
     public Set<String> loadWormPPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadWormPPIs();
         logger.info("Total worm PPIs from BioGrid: " + bPPIs.size());
@@ -96,9 +93,8 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         return mapMODPPIsToHuman(merged, mapper.loadWormIdToHumanUniProtMap());
     }
 
-    @FeatureDesc(sources = {FeatureSource.BioGrid, FeatureSource.StringDB},
-            type = FeatureType.Protein_Interaction,
-            species = FeatureSpecies.Mus_musculus)
+    @FeatureDesc(sources = { FeatureSource.BioGrid,
+            FeatureSource.StringDB }, type = FeatureType.Protein_Interaction, species = FeatureSpecies.Mus_musculus)
     public Set<String> loadMousePPIs() throws IOException {
         Set<String> bPPIs = biogridHandler.loadMousePPIs();
         logger.info("Total mouse PPIs from BioGrid: " + bPPIs.size());
@@ -107,13 +103,18 @@ public class MappedPPIDataHandler extends PPIDataHandler {
         Set<String> merged = mergePPIs(bPPIs, sPPIs);
         // Special case for the mouse mapping, which generates a much better coverage
         // than the panther
-        OrthologousMapper mapper = new EnsemblOrthologousMapper();
-        return mapMODPPIsToHuman(merged,
-                                 mapper.loadMouseIdToHumanUniProtMap());
+        String mouseMapper = ApplicationConfig.getConfig().getAppConfig("mouse.human.mapper");
+        if (mouseMapper == null || mouseMapper.equals("ensebml")) {// Default
+            OrthologousMapper mapper = new EnsemblOrthologousMapper();
+            return mapMODPPIsToHuman(merged, mapper.loadMouseIdToHumanUniProtMap());
+        } 
+        else {
+            return mapMODPPIsToHuman(merged, mapper.loadMouseIdToHumanUniProtMap());
+        }
     }
-    
-    private Set<String> mapMODPPIsToHuman(Set<String> modPPIs,
-                                          Map<String, Set<String>> modIdToHumanUniProtMap) throws IOException {
+
+    private Set<String> mapMODPPIsToHuman(Set<String> modPPIs, Map<String, Set<String>> modIdToHumanUniProtMap)
+            throws IOException {
         Set<String> humanPPIs = new HashSet<>();
         // We want to map to human genes directly
         Map<String, String> uniprotToGene = getUniProtToGene();
@@ -139,14 +140,14 @@ public class MappedPPIDataHandler extends PPIDataHandler {
                 }
             }
         }
+        logger.info("After merged into human: " + humanPPIs.size());
         return humanPPIs;
     }
-    
+
     private Map<String, String> getUniProtToGene() throws IOException {
-        if (uniprotToGene == null) 
+        if (uniprotToGene == null)
             uniprotToGene = ApplicationConfig.getConfig().getUniProtToGeneMap();
         return uniprotToGene;
     }
-
 
 }
