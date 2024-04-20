@@ -94,6 +94,7 @@ def generate_topic_sentence_embedding(pathway2doc: Union[dict, str] = PATHWAY_TE
                                       save: str = None) -> Dict[str, List[np.ndarray]]:
     if isinstance(pathway2doc, str):
         pathway2doc = load_pathway_document(PATHWAY_TEXT_FILE)
+    # one pathway is mapped to multiple embeddings, representing contained subpathways and reactions.
     pathway2embedding = embedder.generate_sentence_embedding(pathway2doc)
     if save is not None:
         file = open(save, 'wb')
@@ -573,11 +574,11 @@ def load_pmid2reactome_similarity_df(file_name: str = DIR + "pmid2reactome_simil
     pd.set_index('PMID', inplace=True)
     return pd
 
-
-if __name__ == '__main__':
-    # search_abstracts_for_all_genes()
-    # Basically run all genes
-    batch_analyze_cor_impact_cosine(20000, 1, need_permutation=False)
+# Don't call when running in a jupyter notebook env
+# if __name__ == '__main__':
+#     # search_abstracts_for_all_genes()
+#     # Basically run all genes
+#     batch_analyze_cor_impact_cosine(20000, 1, need_permutation=False)
     # for impact_type, results_df in results_dfs.items():
     #     print("{}:\n{}".format(impact_type, results_df))
 # calculate_cor_impact_cosine_via_sentence_transformer('LRFN1', load_pathway2embedding())
