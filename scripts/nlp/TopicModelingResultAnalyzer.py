@@ -253,6 +253,7 @@ def plot_permutation_results(real_data_file_pattern: str,
 
 
 def plot_cor_batch_results(file_name: str,
+                           sep: str='\t',
                            col_index: int = 1,
                            color_col_name: str = 'Tdark',
                            need_violin_plot: bool = False,
@@ -267,9 +268,11 @@ def plot_cor_batch_results(file_name: str,
     :return:
     """
     print("Analyzing {}...".format(file_name))
-    cor_df = pd.read_csv(file_name, sep='\t')
-    cor_df.set_index('Gene', inplace=True, drop=False)
-    cor_df['-Log10(p-value)'] = cor_df.iloc[:, col_index + 1].map(lambda x : -math.log10(x))
+    # Make sure this is right for the index_col
+    cor_df = pd.read_csv(file_name, sep=sep, index_col=0)
+    if 'Gene' in cor_df.columns:
+        cor_df.set_index('Gene', inplace=True, drop=False)
+    cor_df['-Log10(p-value)'] = cor_df.iloc[:, col_index + 1].map(lambda x : -np.log10(x))
     _attach_devlevel_annotated(cor_df)
     # scatter between correlation and p-values
     fig = px.scatter(cor_df,

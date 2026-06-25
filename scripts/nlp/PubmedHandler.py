@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import List
 from urllib.request import urlopen
 from typing import Optional
+from pymongo import MongoClient
 
 import psutil
 
@@ -30,16 +31,23 @@ import UniProtHandler as uph
 # See this for more information: https://towardsdatascience.com/10x-faster-parallel-python-without-python-multiprocessing-e5017c93cce1
 
 # file_name = 'PubmedHandler_031722.log'
-file_name = None
+file_name = 'PubmedHandler_020425.log'
+# file_name = None
 logging.basicConfig(level=logging.INFO,
                     filename=file_name,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 logger = logging.getLogger(__name__)
 
-DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
-OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
-MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
+# DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed22n{:04d}.xml.gz"
+# OUT_DIR = "../../results/impact_analysis/pubmed_baseline"
+# MAX_ID = 1114 # The largest number of 2022 annual baseline of pubmed
+
+# 2025 baseline
+DOWNLOAD_URL = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/pubmed25n{:04d}.xml.gz"
+OUT_DIR = "../../results/impact_analysis/pubmed_baseline_2025"
+MAX_ID = 1274 # The largest number of 2025 annual baseline of pubmed
+
 MAX_WORKER = psutil.cpu_count(logical=False)
 
 # Cache loaded pubmed abstracts, which should be big
@@ -71,7 +79,8 @@ def dowload_link(dir_name: str,
 def download():
     ensure_out_dir(OUT_DIR)
     # Get links for download
-    links = [DOWNLOAD_URL.format(id) for id in range(1, MAX_ID + 1) if id % 200 == 0]
+    # links = [DOWNLOAD_URL.format(id) for id in range(1, MAX_ID + 1) if id % 200 == 0]
+    links = [DOWNLOAD_URL.format(id) for id in range(1, MAX_ID + 1)]
     # dowload_link(OUT_DIR, links[0])
     with ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
         # Need to use future in order to catch exceptions
@@ -437,6 +446,38 @@ def cache_obj(obj, file):
     pickle.dump(obj, file)
     file.close()
 
+def persist_abstracts_to_mongo(user: str, password: str):
+    # Load pmid2abstract
+    pmid2abstract = load_pmid2abstract()
+    # Connect to MongoDB
+    client = MongoClient('mongodb://{}:{}@localhost:27017/'.format(user, password))
+    db_name = 'pubmed_abstract'
+    # Note: The collection name is wrong. It should be 'pmid2abstract' instead of 'pmid2asbtract'
+    # collection_name = 'pmid2asbtract' # Used for the 2025. Need to rename it to 'pmid2abstract' using compass.
+    collection_name = 'pmid2abstract'
+    db = client[db_name]
+    collection = db[collection_name]
+
+    # Create an index on the "pmid" field to ensure uniqueness and improve lookup performance
+    collection.create_index([('pmid', 1)], unique=True)
+
+    # Iterate through the dictionary and insert each item
+    counter = 0
+    for pmid, abstract in pmid2abstract.items():
+        document = {
+            'pmid': pmid,  # Integer key (pmid)
+            'abstract': abstract  # String value (abstract)
+        }
+        try:
+            # Insert document into MongoDB collection
+            collection.insert_one(document)
+            counter += 1
+            if counter % 1000 == 0:
+                logger.info('Inserted abstracts: {}'.format(counter))
+                # break
+        except Exception as e:
+            logger.error('Failed to insert pmid: {}'.format(pmid))
+
 
 # For ray worker
 @ray.remote
@@ -499,6 +540,10 @@ class AbstractSearcher(object):
     def clean(self):
         self.pmid2genes.clear()
 
-#
-# if __name__ == '__main__':
-#     embed_abstracts_via_ray()
+
+if __name__ == '__main__':
+    # embed_abstracts_via_ray()
+    # download()
+    # extract_all_abstracts()
+    persist_abstracts_to_mongo('root', 'macmongodb01')
+
